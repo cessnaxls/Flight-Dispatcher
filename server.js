@@ -137,6 +137,9 @@ function validateZuluLegs(legs,label="generation"){
   if(bad) throw new Error(`${label} omitted a valid local ISO time or IANA timezone for leg ${bad.seq||"?"}; retrying.`);
 }
 function finalizeMission(data){
+  const title=String(data?.title||"").trim(), story=String(data?.story||"").trim(), operation=String(data?.operation||"").trim(), aircraft=String(data?.aircraft_type||"").trim();
+  if(/AM-UNASSIGNED/i.test(String(data?.code||""))||/Mission Setup Required|details are incomplete|no legs.*can be established/i.test(`${title} ${story}`)) throw new Error("Mission generator returned a setup/incomplete mission instead of a real assignment.");
+  if(!title||!operation||!aircraft) throw new Error("Mission generator omitted required assignment identity fields.");
   data.legs=(data.legs||[]).map(finalizeLeg).filter(l=>l.origin&&l.destination);
   validateZuluLegs(data.legs,"Mission");
   for(const l of data.legs){
