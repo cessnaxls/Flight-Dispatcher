@@ -39,3 +39,9 @@ table{width:100%;border-collapse:collapse;font-size:10px;background:var(--panel)
 .op-badge{color:var(--blue);border:1px solid var(--blue);background:transparent}
 .checkrow{display:flex;align-items:center;gap:8px;min-height:42px;padding:4px 2px}.checkrow input{width:18px;height:18px;flex:0 0 auto}.checkrow label{margin:0}.mx-badge{white-space:nowrap}
 .mx-summary{padding:9px 10px;margin:0 0 10px;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:6px;background:var(--panel2);font-size:10px;line-height:1.5}
+
+/* PATCH 7: visible generation progress while long AI/web requests are running */
+.generation-progress{position:fixed;left:50%;top:84px;transform:translateX(-50%);z-index:1200;width:min(620px,calc(100vw - 32px));padding:14px 16px;background:var(--panel);border:1px solid var(--blue);border-radius:10px;box-shadow:0 12px 38px #10283f35}
+.gen-progress-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;letter-spacing:.6px;color:var(--text)}.gen-progress-pct{font-size:15px;color:var(--blue);font-weight:900}
+.gen-progress-track{height:10px;margin:10px 0 8px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;overflow:hidden}.gen-progress-fill{height:100%;width:0;background:var(--blue);transition:width .55s ease}
+.gen-progress-stage{font-size:10px;font-weight:900;color:var(--blue);letter-spacing:.7px}.gen-progress-note{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.35}.generation-progress.complete{border-color:var(--blue2)}.generation-progress.failed{border-color:var(--danger)}.generation-progress.failed .gen-progress-stage{color:var(--danger)}
