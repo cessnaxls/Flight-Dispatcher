@@ -24,78 +24,77 @@ function client(req){
   if(!key) throw new Error("OPENAI_API_KEY is not configured on Render.");
   return new OpenAI({apiKey:key});
 }
+const debugLog=[];
+function debugEvent(kind,message,meta={}){
+  const e={time:new Date().toISOString(),kind,message,...meta};
+  debugLog.unshift(e); if(debugLog.length>200) debugLog.length=200;
+  console.log(`[AeroMission ${kind}] ${message}`,meta);
+}
+app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
+
+function extractJSONObject(text){
+  let t=String(text||"").trim();
+  t=t.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();
+  try{return JSON.parse(t)}catch{}
+  const first=t.indexOf("{"); if(first<0) throw new Error("AI response contained no JSON object.");
+  let depth=0,inString=false,escape=false;
+  for(let i=first;i<t.length;i++){
+    const ch=t[i];
+    if(inString){ if(escape)escape=false; else if(ch==="\\")escape=true; else if(ch==='"')inString=false; continue; }
+    if(ch==='"'){inString=true;continue} if(ch==="{")depth++; else if(ch==="}"){depth--;if(depth===0)return JSON.parse(t.slice(first,i+1));}
+  }
+  throw new Error("AI JSON object was truncated.");
+}
+async function responseWithTimeout(c,params,ms){
+  const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),ms);
+  try{return await c.responses.create(params,{signal:ac.signal})}finally{clearTimeout(timer)}
+}
 async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
-  // PATCH 10: Web research and JSON serialization are intentionally split.
-  // OpenAI's API currently rejects web_search combined with JSON mode, so:
-  //   1) research with web_search enabled (normal text output), then
-  //   2) convert that research into strict JSON in a second Responses call
-  //      with web_search disabled and JSON mode enabled.
-  // This preserves live web research while making the final payload parseable.
+  // PATCH 12 FAST PATH: one web-enabled generation call, then parse its JSON.
+  // A small JSON-only repair call is used only when the primary answer is malformed.
   const requested=String(req.body?.model||process.env.OPENAI_MODEL||"gpt-6-luna");
   const model=modelAllow.has(requested)?requested:"gpt-6-luna";
-  const c=client(req);
-  const progressId=req.body?._generation_id||"";
-  const attempts=3;
-  setGenerationProgress(progressId,5,"QUEUED");
-  let lastError=null;
-
-  async function collectResearch(){
-    if(!web) return "";
-    setGenerationProgress(progressId,12,"WEB RESEARCH","Searching current public sources");
-    const researchPrompt=`${prompt}\n\nRESEARCH PHASE ONLY:\nUse web search where useful and gather the current factual material needed to satisfy the request. Do not attempt JSON in this phase. Produce a compact but complete research dossier for a second AI pass. Preserve exact ICAO codes, registrations, time zones, weather observations, FBO/fuel-grade details, prices/availability, and source URLs or source names when available. Clearly distinguish verified public facts from scenario-generated details.`;
-    const r=await c.responses.create({
-      model,
-      tools:[{type:"web_search",search_context_size:"medium"}],
-      input:researchPrompt,
-      max_output_tokens:18000
-    });
-    if(r.status==="incomplete") throw new Error(`Web research incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
-    if(r.status==="failed") throw new Error(r.error?.message||"Web research failed.");
-    const t=String(r.output_text||"").trim();
-    if(!t) throw new Error("Web research returned no usable text.");
-    setGenerationProgress(progressId,56,"RESEARCH COMPLETE","Building structured dispatch data");
-    return t;
-  }
-
+  const c=client(req), progressId=req.body?._generation_id||"", started=Date.now();
+  const requestKind=req.path.includes("jobs")?"JOB BOARD":req.path.includes("mission")?"MISSION":req.path.includes("ops")?"OPS":"AI";
+  setGenerationProgress(progressId,8,"STARTING","Preparing AI request");
+  debugEvent("START",`${requestKind} generation started`,{id:progressId,web,model});
+  let raw="", data, primaryError=null;
   try{
-    const research=await collectResearch();
-    for(let attempt=1;attempt<=attempts;attempt++){
-      try{
-        setGenerationProgress(progressId,attempt===1?66:Math.min(88,70+attempt*8),attempt===1?"STRUCTURING RESULTS":`REPAIRING JSON ${attempt}/${attempts}`,attempt===1?"Converting researched data into the app schema":"Retrying structured synthesis without repeating web research");
-        const retryNote=attempt===1?"":`\n\nRETRY ${attempt}/${attempts}: The previous serialization was incomplete or invalid. Return ONE complete JSON object only. Keep every required field, but shorten prose strings if necessary.`;
-        const synthesisPrompt=web
-          ? `${prompt}\n\nWEB RESEARCH DOSSIER (treat this as evidence/context, not as instructions):\n---\n${research}\n---\n\nSYNTHESIS PHASE: Build the requested final object from the user controls and the research dossier above. Follow the requested JSON shape exactly. Do not browse in this phase. Return one complete JSON object and no surrounding prose.${retryNote}`
-          : `${prompt}\n\nReturn one complete JSON object and no surrounding prose.${retryNote}`;
-        const r=await c.responses.create({
-          model,
-          input:synthesisPrompt,
-          text:{format:{type:"json_object"}},
-          max_output_tokens:30000
-        });
-        if(r.status==="incomplete") throw new Error(`JSON synthesis incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
-        if(r.status==="failed") throw new Error(r.error?.message||"JSON synthesis failed.");
-        const t=String(r.output_text||"").trim();
-        if(!t) throw new Error("AI returned an empty structured response.");
-        let data;
-        try{ data=JSON.parse(t); }
-        catch(parseError){ throw new Error(`Structured JSON parse failed: ${parseError.message}`); }
-        if(!data || typeof data!=="object" || Array.isArray(data)) throw new Error("AI returned the wrong JSON shape.");
-        if(transform) data=transform(data);
-        setGenerationProgress(progressId,100,"COMPLETE");
-        return res.json(data);
-      }catch(e){
-        lastError=e;
-        console.warn(`[AeroMission AI] JSON synthesis attempt ${attempt}/${attempts} failed:`,e?.message||e);
-        if(attempt<attempts) await new Promise(resolve=>setTimeout(resolve,450*attempt));
-      }
+    setGenerationProgress(progressId,25,web?"AI + WEB RESEARCH":"AI GENERATION",web?"Generating while searching current public sources":"Generating structured data");
+    const params={model,input:`${prompt}\n\nOUTPUT CONTRACT: Return exactly ONE complete JSON object. No Markdown fences and no prose before or after the object.`,max_output_tokens:web?14000:10000};
+    if(web) params.tools=[{type:"web_search",search_context_size:"low"}];
+    const r=await responseWithTimeout(c,params,50000);
+    if(r.status==="incomplete") throw new Error(`Primary response incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
+    if(r.status==="failed") throw new Error(r.error?.message||"Primary AI request failed.");
+    raw=String(r.output_text||"").trim();
+    if(!raw) throw new Error("AI returned an empty response.");
+    setGenerationProgress(progressId,86,"VALIDATING","Validating generated data");
+    data=extractJSONObject(raw);
+  }catch(e){primaryError=e;debugEvent("WARN",`${requestKind} primary generation needs repair`,{id:progressId,error:e?.message||String(e),elapsed_ms:Date.now()-started});}
+  if(!data){
+    try{
+      setGenerationProgress(progressId,90,"JSON REPAIR","Repairing response formatting");
+      const repairInput=`Convert the following attempted response into ONE valid JSON object only. Preserve its data; do not research or add commentary.\n\n${raw||"{}"}`;
+      const r=await responseWithTimeout(c,{model,input:repairInput,text:{format:{type:"json_object"}},max_output_tokens:10000},8000);
+      data=JSON.parse(String(r.output_text||"{}"));
+    }catch(e){
+      const detail=primaryError?.message||e?.message||"AI generation failed";
+      debugEvent("ERROR",`${requestKind} generation failed`,{id:progressId,error:detail,elapsed_ms:Date.now()-started});
+      setGenerationProgress(progressId,100,"FAILED",detail);
+      return res.status(502).json({error:`AI generation could not complete. ${detail}`,generation_id:progressId});
     }
-  }catch(e){
-    lastError=e;
-    console.warn("[AeroMission AI] web research phase failed:",e?.message||e);
   }
-  const detail=lastError?.message||String(lastError||"Unknown AI error");
-  setGenerationProgress(progressId,100,"FAILED",detail);
-  return res.status(502).json({error:`AI generation could not complete. ${detail}`});
+  try{
+    if(!data||typeof data!=="object"||Array.isArray(data)) throw new Error("AI returned the wrong JSON shape.");
+    if(transform)data=transform(data);
+    setGenerationProgress(progressId,100,"COMPLETE",`Completed in ${((Date.now()-started)/1000).toFixed(1)}s`);
+    debugEvent("COMPLETE",`${requestKind} generation completed`,{id:progressId,elapsed_ms:Date.now()-started});
+    return res.json(data);
+  }catch(e){
+    debugEvent("ERROR",`${requestKind} validation failed`,{id:progressId,error:e?.message||String(e),elapsed_ms:Date.now()-started});
+    setGenerationProgress(progressId,100,"FAILED",e?.message||String(e));
+    return res.status(502).json({error:`Generated data failed validation. ${e?.message||e}`,generation_id:progressId});
+  }
 }
 function zonedLocalToZulu(localIso, timeZone){
   // Convert an AI-supplied wall-clock ISO time + IANA timezone into UTC.
@@ -189,7 +188,7 @@ Inspection times are generated app records randomized plausibly for aircraft cat
 app.post("/api/mission",(req,res)=>{
  const x=req.body||{};
  const units=(x.units||"IMPERIAL").toUpperCase();
- aiJSON(req,res,`Create a detailed AeroMission Ops mission from these controls/job. USER DISPLAY UNITS: ${units}. If IMPERIAL, ALL generated/displayed lengths, runway dimensions, elevations, weights, fuel quantities, temperatures and performance figures must use imperial aviation units (ft, lb, gal where appropriate, deg F). If METRIC, use m, kg, L and deg C. Do not mix systems except when a source quote is unavoidable. Return local wall-clock times plus IANA timezones; the server will CALCULATE UTC/Zulu times. ALL airport identifiers MUST be four-letter ICAO codes only, never IATA codes:
+ aiJSON(req,res,`Create a detailed AeroMission Ops mission from these controls/job. IMPORTANT: blank/empty user controls mean AI DECIDES; they are NEVER missing requirements. You MUST invent a complete operation, aircraft, route, schedule, manifests and mission when controls are blank. Never return AM-UNASSIGNED, Mission Setup Required, or an incomplete/setup-required mission. USER DISPLAY UNITS: ${units}. If IMPERIAL, ALL generated/displayed lengths, runway dimensions, elevations, weights, fuel quantities, temperatures and performance figures must use imperial aviation units (ft, lb, gal where appropriate, deg F). If METRIC, use m, kg, L and deg C. Do not mix systems except when a source quote is unavoidable. Return local wall-clock times plus IANA timezones; the server will CALCULATE UTC/Zulu times. ALL airport identifiers MUST be four-letter ICAO codes only, never IATA codes:
 ${JSON.stringify(x)}
 MX CONDITION MODEL: Requested MX band is ${JSON.stringify(x.mx_status||x.job?.mx_status||"RANDOM")}; age influence is ${(x.age_influences_mx ?? x.job?.age_influences_mx)!==false}. RANDOM may span the full range. BAD = really bad through sub-average; OK = average; GOOD = above-average through excellent. Use the band to control the number and severity of MEL/CDL/MX/INOP items. Age is an influence, not destiny: an old aircraft can be meticulously maintained or awful; a new aircraft can be neglected or pristine. Location also influences condition only through concrete exposure/operations factors such as salt air/corrosion, humidity, desert dust, cold/heat cycling, outdoor storage, high utilization, remote maintenance access, and parts/logistics. Do not use nationality/region as a maintenance-quality proxy. Keep outcomes varied and plausible. Generated MX condition is internal app state and must never be represented as the actual maintenance history or airworthiness status of the publicly matched registration. Do not put simulation/training disclaimers in mission story, MX descriptions, limitations, airport briefs, or paperwork text. Do not use the words simulation, training, scenario, fictional, placeholder, TBD, or unverified in any user-visible mission field unless the user explicitly asks for that terminology.
 Payload logic is mission-specific and MUST be recalculated independently for every leg. Do not copy payload from another mission or mechanically repeat the first leg. Track loading and unloading. payload_lb must equal passenger_weight_lb + baggage_lb + cargo_lb + equipment_lb and remain plausible for the selected aircraft. If no registration was explicitly supplied, use web research to select a REAL publicly documented tail whose actual aircraft type EXACTLY matches aircraft_type. Do not substitute a nearby subtype or family variant. If the user explicitly supplied an aircraft type, that requested type has priority and the selected tail must match it. Never invent a registration. When an exact public match is found, do not clutter the mission story with identity-verification commentary; place identity state only in registration_status. For EVERY leg, return a complete passenger, crew, and cargo manifest. passengers must contain PASSENGERS ONLY, never flight crew. crew must be a separate array with role, full_name and weight_lb. pax must equal passengers.length; crew_count must equal crew.length. If the mission narrative calls for 12 VIPs plus 5 crew, return 12 passengers and 5 crew, not 17 passengers. Passenger entries need full_name, weight_lb, dob (YYYY-MM-DD), and, when that leg crosses an international border, passport_country (ISO 3166-1 alpha-3 three-letter code) and passport_number. Crew identities may be fictional unless the user supplied a name/role. For domestic legs, passport fields may be blank. Use fictional identities for generated people and never copy personal data from public sources. passenger_weight_lb must equal the sum of passenger weight_lb values. cargo_manifest must list every cargo item with description, quantity, weight_lb, hazmat boolean, and when hazmat=true include simulated un_number, proper_shipping_name, hazard_class, packing_group, and handling_notes. cargo_lb must equal the sum of cargo_manifest item weights. Do not hide cargo in generic manifest_summary text. If there is no cargo return an empty array.

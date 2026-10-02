@@ -1,0 +1,7 @@
+PATCH 12
+- Restores a fast single-pass AI + web-search generation path instead of always doing a full research call followed by a second full synthesis call.
+- Keeps robust JSON extraction and only invokes a short JSON-only repair call when the primary web-enabled response is malformed.
+- Primary AI request has a 50-second timeout; repair is capped at 8 seconds.
+- Mission Builder blank fields explicitly mean AI DECIDES and may not produce an unassigned/setup-required mission.
+- Adds Settings > Debug Log with server-side generation start/completion/failure timings and request IDs.
+- Progress stages now correspond to the fast request: STARTING, AI + WEB RESEARCH, VALIDATING, optional JSON REPAIR, COMPLETE.
