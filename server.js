@@ -15,19 +15,44 @@ function client(req){
   return new OpenAI({apiKey:key});
 }
 async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
-  try{
-    const requested=String(req.body?.model||process.env.OPENAI_MODEL||"gpt-6-luna");
-    const model=modelAllow.has(requested)?requested:"gpt-6-luna";
-    const r=await client(req).responses.create({
-      model,
-      tools:web?[{type:"web_search"}]:[],
-      input:prompt
-    });
-    let t=(r.output_text||"").trim().replace(/^```(?:json)?\s*|\s*```$/gis,"");
-    const a=t.indexOf("{"), b=t.lastIndexOf("}");
-    if(a<0||b<a) throw new Error("AI did not return JSON.");
-    let data=JSON.parse(t.slice(a,b+1)); if(transform) data=transform(data); res.json(data);
-  }catch(e){res.status(500).json({error:e.message||String(e)});}
+  // Reliable AI + web pipeline: JSON mode guarantees a JSON document while
+  // preserving built-in web search. We then validate/transform locally and
+  // automatically retry transient/incomplete generations instead of exposing
+  // a brittle "AI did not return JSON" parser failure to the user.
+  const requested=String(req.body?.model||process.env.OPENAI_MODEL||"gpt-6-luna");
+  const model=modelAllow.has(requested)?requested:"gpt-6-luna";
+  const attempts=3;
+  let lastError=null;
+  for(let attempt=1;attempt<=attempts;attempt++){
+    try{
+      const retryNote=attempt===1?"":`\n\nRETRY ${attempt}/${attempts}: The previous generation was incomplete or invalid. Return ONE complete JSON object only. Preserve all requested research and fields; be concise inside string fields so the object completes.`;
+      const r=await client(req).responses.create({
+        model,
+        tools:web?[{type:"web_search",search_context_size:"medium"}]:[],
+        input:prompt+retryNote,
+        text:{format:{type:"json_object"}},
+        max_output_tokens:30000
+      });
+      if(r.status==="incomplete"){
+        throw new Error(`AI response incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
+      }
+      if(r.status==="failed") throw new Error(r.error?.message||"AI response failed.");
+      const t=String(r.output_text||"").trim();
+      if(!t) throw new Error("AI returned an empty structured response.");
+      let data;
+      try{ data=JSON.parse(t); }
+      catch(parseError){ throw new Error(`Structured JSON parse failed: ${parseError.message}`); }
+      if(!data || typeof data!=="object" || Array.isArray(data)) throw new Error("AI returned the wrong JSON shape.");
+      if(transform) data=transform(data);
+      return res.json(data);
+    }catch(e){
+      lastError=e;
+      console.warn(`[AeroMission AI] attempt ${attempt}/${attempts} failed:`,e?.message||e);
+      if(attempt<attempts) await new Promise(resolve=>setTimeout(resolve,350*attempt));
+    }
+  }
+  const detail=lastError?.message||String(lastError||"Unknown AI error");
+  return res.status(502).json({error:`AI generation could not complete after ${attempts} attempts. ${detail}`});
 }
 function zonedLocalToZulu(localIso, timeZone){
   // Convert an AI-supplied wall-clock ISO time + IANA timezone into UTC.
