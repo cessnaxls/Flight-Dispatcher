@@ -91,9 +91,26 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
     debugEvent("COMPLETE",`${requestKind} generation completed`,{id:progressId,elapsed_ms:Date.now()-started});
     return res.json(data);
   }catch(e){
-    debugEvent("ERROR",`${requestKind} validation failed`,{id:progressId,error:e?.message||String(e),elapsed_ms:Date.now()-started});
-    setGenerationProgress(progressId,100,"FAILED",e?.message||String(e));
-    return res.status(502).json({error:`Generated data failed validation. ${e?.message||e}`,generation_id:progressId});
+    // PATCH 14: validation failures get one fast corrective pass instead of
+    // throwing away an otherwise useful researched response. This pass does
+    // not repeat web search, so it stays quick and preserves researched facts.
+    const validationError=e?.message||String(e);
+    debugEvent("WARN",`${requestKind} validation failed; attempting correction`,{id:progressId,error:validationError,elapsed_ms:Date.now()-started});
+    try{
+      setGenerationProgress(progressId,93,"CORRECTING","Correcting generated mission data");
+      const correction=`The JSON below was generated for this request but failed application validation. Correct ONLY what is necessary to satisfy the validation error and original output contract. Preserve researched facts and all usable mission/job details. If the original request left controls blank, invent complete assignment values rather than returning a setup-required response. Return one complete JSON object only.\n\nVALIDATION ERROR: ${validationError}\n\nORIGINAL REQUEST:\n${prompt}\n\nGENERATED JSON:\n${JSON.stringify(data)}`;
+      const rr=await responseWithTimeout(c,{model,input:correction,text:{format:{type:"json_object"}},max_output_tokens:10000},12000);
+      let corrected=JSON.parse(String(rr.output_text||"{}"));
+      if(transform)corrected=transform(corrected);
+      setGenerationProgress(progressId,100,"COMPLETE",`Completed in ${((Date.now()-started)/1000).toFixed(1)}s`);
+      debugEvent("COMPLETE",`${requestKind} generation corrected and completed`,{id:progressId,elapsed_ms:Date.now()-started});
+      return res.json(corrected);
+    }catch(e2){
+      const detail=e2?.message||validationError;
+      debugEvent("ERROR",`${requestKind} validation correction failed`,{id:progressId,error:detail,initial_error:validationError,elapsed_ms:Date.now()-started});
+      setGenerationProgress(progressId,100,"FAILED",detail);
+      return res.status(502).json({error:`Generated data failed validation. ${detail}`,generation_id:progressId});
+    }
   }
 }
 function zonedLocalToZulu(localIso, timeZone){
