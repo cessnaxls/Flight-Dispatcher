@@ -10,6 +10,6 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-5.6-luna
+        value: gpt-6-luna
       - key: NODE_VERSION
         value: 24.21.0
