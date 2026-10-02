@@ -6,7 +6,7 @@ let db=Object.assign(structuredClone(defaults),JSON.parse(localStorage.getItem(D
 for(const k of ["settings","fleet","missions","jobs","logs","opsThreads","dutyLogs"]) if(!db[k]) db[k]=structuredClone(defaults[k]);
 let page="dashboard";
 const save=()=>localStorage.setItem(DBKEY,JSON.stringify(db));
-function toast(x){const t=$("#toast");t.textContent=x;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600)}
+function toast(x){const t=$("#toast");t.textContent=x;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),5500)}
 function startGenerationProgress(kind){
  const host=document.createElement("div");host.className="generation-progress";host.innerHTML=`<div class="gen-progress-top"><b>${kind==="jobs"?"BUILDING JOB BOARD":"BUILDING MISSION"}</b><span class="gen-progress-pct">0%</span></div><div class="gen-progress-track"><div class="gen-progress-fill"></div></div><div class="gen-progress-stage">QUEUED</div><div class="gen-progress-note">AI research and generation time varies with web research and assignment complexity.</div>`;
  document.body.appendChild(host);let pct=0,stopped=false;
@@ -14,7 +14,7 @@ function startGenerationProgress(kind){
  const fill=host.querySelector(".gen-progress-fill"),pctEl=host.querySelector(".gen-progress-pct"),stage=host.querySelector(".gen-progress-stage");
  function paint(v){pct=Math.max(pct,Math.min(v,94));fill.style.width=pct+"%";pctEl.textContent=Math.round(pct)+"%";let label=stages[0][1];for(const [n,t] of stages)if(pct>=n)label=t;stage.textContent=label}
  paint(3);const timer=setInterval(()=>{if(stopped)return;const step=pct<55?2.4:pct<80?1.25:.35;paint(pct+step)},850);
- return {finish(msg="COMPLETE"){stopped=true;clearInterval(timer);fill.style.width="100%";pctEl.textContent="100%";stage.textContent=msg;host.classList.add("complete");setTimeout(()=>host.remove(),650)},fail(msg="GENERATION FAILED"){stopped=true;clearInterval(timer);stage.textContent=msg;host.classList.add("failed");setTimeout(()=>host.remove(),1800)}}
+ return {finish(msg="COMPLETE"){stopped=true;clearInterval(timer);fill.style.width="100%";pctEl.textContent="100%";stage.textContent=msg;host.classList.add("complete");setTimeout(()=>host.remove(),650)},fail(msg="GENERATION FAILED"){stopped=true;clearInterval(timer);stage.textContent=msg;host.classList.add("failed");setTimeout(()=>host.remove(),5500)}}
 }
 async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,model:db.settings.model,units:db.settings.units||"IMPERIAL"})});const j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j}
 const navs=[["dashboard","DASHBOARD"],["builder","MISSION BUILDER"],["dispatch","DISPATCH"],["ops","OPS COORDINATION"],["jobs","JOB BOARD"],["fleet","FLEET / MX"],["live","LIVE FLIGHT"],["log","LOGBOOK"],["settings","SETTINGS"]];
