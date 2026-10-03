@@ -50,3 +50,5 @@ table{width:100%;border-collapse:collapse;font-size:10px;background:var(--panel)
 /* PATCH 17: Legs/Load uses the same card visual language as the rest of Dispatch. */
 .leg-standard{padding:10px 0;border-top:1px solid var(--line)}
 .leg-standard:first-of-type{border-top:0}.leg-standard h3{margin:0 0 5px;color:var(--blue)}
+/* PATCH 22: aligned airport/FBO data grid */
+.brief-grid{display:grid;grid-template-columns:92px minmax(0,1fr);gap:4px 10px;align-items:start;font-size:11px;line-height:1.35;margin:8px 0 10px}.brief-grid>b{display:block;align-self:start;line-height:1.35;color:var(--accent,#54b6ff)}.brief-grid>span{display:block;min-width:0;overflow-wrap:anywhere}.fbo-table th,.fbo-table td{vertical-align:top}.fbo-table th{white-space:nowrap}.fbo-table td{line-height:1.3}
