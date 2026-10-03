@@ -1,0 +1,6 @@
+AeroMission Ops PATCH 17
+- Mission Builder resolves a real public aircraft registration before generating every mission; blank type/tail means select a real aircraft and exact public registration rather than inventing a tail.
+- Public aircraft identity (including year/type/engine context when available) is passed into mission generation so age/type can influence the internal MX simulation without claiming generated MX is the real aircraft's maintenance history.
+- Job Board button renamed DISPATCH MISSION. It resolves the selected job's real aircraft, generates the complete mission from that selected job, saves it, and routes directly to Dispatch. It no longer funnels through Mission Builder.
+- LEGS / LOAD now uses the same standard card styling as the other Dispatch cards.
+- Mission validation now requires a registration.
