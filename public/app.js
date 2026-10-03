@@ -5,6 +5,8 @@ const emptyBuilderDraft=()=>({operation:"",aircraft_type:"",registration:"",star
 const defaults={settings:{theme:"LIGHT",model:"gpt-6-luna",home:"",jobStart:"",jobOperation:"",jobAircraft:"",jobMin:"",jobMax:"",jobDifficulty:"ALL LEVELS",jobMxStatus:"RANDOM",jobAgeMx:true,units:"IMPERIAL"},fleet:[],missions:[],jobs:[],logs:[],opsThreads:{},dutyLogs:[],builderDraft:emptyBuilderDraft(),selectedJob:null,selectedMission:null};
 let db=Object.assign(structuredClone(defaults),JSON.parse(localStorage.getItem(DBKEY)||"{}")); 
 for(const k of ["settings","fleet","missions","jobs","logs","opsThreads","dutyLogs","builderDraft"]) if(!db[k]) db[k]=structuredClone(defaults[k]);
+// PATCH 15: a fresh app load always starts Mission Builder blank. Job Board transfers still populate it during the current session.
+db.builderDraft=emptyBuilderDraft();
 function usableMission(m){return !!(m&&Array.isArray(m.legs)&&m.legs.length&&m.title&&!/Mission Setup Required/i.test(String(m.title))&&!/AM-UNASSIGNED/i.test(String(m.code||"")))}
 const beforeMissionCount=db.missions.length;db.missions=db.missions.filter(usableMission);if(beforeMissionCount!==db.missions.length&&db.selectedMission&&!db.missions.some(m=>m.code===db.selectedMission))db.selectedMission=db.missions[0]?.code||null;
 let page="dashboard";
