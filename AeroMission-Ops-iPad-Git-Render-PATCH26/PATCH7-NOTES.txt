@@ -1,0 +1,9 @@
+AeroMission Ops iPad PATCH 7
+- Adds a prominent progress panel for Mission Builder generation.
+- Adds the same progress panel for Job Board refresh/generation.
+- Adds progress while converting a selected Job Board assignment into a mission.
+- Progress shows percentage plus descriptive generation stage.
+- The bar advances toward 94% while the server/OpenAI request is outstanding, then reaches 100% only when the response actually completes.
+- Failure state is shown if generation errors.
+
+Note: OpenAI/web generation is a single HTTP request, so intermediate percentages are a responsive waiting indicator rather than server-reported completion percentages. The 100% state is tied to actual request completion.
