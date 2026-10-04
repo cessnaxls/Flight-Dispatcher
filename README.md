@@ -20,3 +20,12 @@ The UI accepts PDF files only. This first web build submits only PDF metadata to
 
 ## Operational disclaimer
 Training/simulation only. AI-generated MEL, legal, performance, fuel-price estimates and maintenance records are not real-world operational authority.
+
+
+## PATCH 24 — mission-first staged generation
+- Restores mission-first creative architecture: concept -> aircraft type -> verified public registration -> detailed operational expansion -> weather/FBO enrichment.
+- AI DECIDES no longer resolves a random aircraft before inventing the assignment.
+- Job Board selections themselves serve as the creative concept before aircraft resolution.
+- Removed the diversity-seed workaround from Mission Builder flow. Recent missions remain exclusion context only for the concept pass.
+- Aircraft identity status is VERIFIED PUBLIC MATCH or UNRESOLVED; no PLAUSIBLE status.
+- Removed whole-mission rejection based only on immersion-breaking keyword scanning; structural validation remains.
