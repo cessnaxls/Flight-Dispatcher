@@ -128,6 +128,7 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
       return res.json(corrected);
     }catch(e2){
       const detail=e2?.message||validationError;
+      // PATCH 32: expanded ground-support research.
       // PATCH 31: mission validation is section-tolerant. If the creative/operational
       // mission itself is usable, do not discard it because a secondary section
       // (MX, paperwork, manifest detail, etc.) failed a corrective pass. The
@@ -237,13 +238,26 @@ app.post("/api/fbo/enrich",(req,res)=>{
  const mission=req.body?.mission||{};
  const airports=[...new Set([...(mission.legs||[]).flatMap(l=>[l.origin,l.destination,l.alternate_icao].filter(Boolean)),...(mission.airport_briefings||[]).map(a=>a.icao).filter(Boolean)])];
  if(!airports.length)return res.json(mission);
- aiJSON(req,res,`Research CURRENT public FBO and retail aviation-fuel information for these airports: ${airports.join(", ")}.
-Use current public airport/FBO/fuel sources such as AirNav, GlobalAir, official airport/FBO pages, or equivalent reliable public listings. For EACH airport, enumerate EVERY FBO/provider you can verify at that airport, not merely one preferred provider. Do not invent providers, services, availability, or prices. If no FBO can be verified, return an empty fbos array and notes explaining that no FBO was found in the researched public listings. If an FBO exists and a fuel grade is verified available but no current retail price is published, leave price blank; the app will insert a dispatch planning price after research. Keep 100LL/AVGAS and Jet A/Jet A-1 separate. Capture the posted price update date when the source supplies one. Never invent an FBO, handler, fuel grade, or fuel availability.
-Return STRICT JSON {"airports":[{"icao":"","fbos":[{"name":"","services":"","fuels":[{"type":"100LL|AVGAS|JET A|JET A-1|MOGAS|SAF","service":"FULL SERVICE|SELF SERVICE|ASSISTED|","availability":"AVAILABLE|UNAVAILABLE|NOT PUBLISHED","price":"","price_unit":"USD/GAL|LOCAL/GAL|USD/L|LOCAL/L|","price_updated":""}],"source":""}],"notes":"","sources":[""]}]}.
+ aiJSON(req,res,`Research CURRENT public ground-support and aviation-fuel information for EVERY airport in this list: ${airports.join(", ")}.
+
+This is NOT limited to businesses calling themselves an FBO. For EACH airport, deliberately search multiple provider categories and enumerate ALL verifiable providers relevant to a flight operation:
+1. fixed-base operators / executive aviation terminals / business-aviation facilities;
+2. airport-appointed or airline ground handlers and ramp handlers;
+3. cargo handlers when the airport or mission uses cargo operations;
+4. aviation fuel suppliers, fuel concessionaires, hydrant operators and into-plane fueling companies;
+5. trip-support companies that actually arrange handling/fuel at that airport (mark these as COORDINATOR rather than implying they are the on-airport handler);
+6. GA terminals, VIP terminals, parking/hangar providers, deicing providers and other directly relevant aircraft-service providers.
+
+Search using the ICAO AND airport name with terms such as FBO, ground handling, handler, business aviation, executive terminal, fuel supplier, Jet A-1, AVGAS, into-plane, hydrant, cargo handling, ramp services and trip support. Prefer current official airport/operator pages, airport operational/synopsis documents, handler/fuel-company pages, AirNav/GlobalAir/FlightAware where useful, and other reliable public aviation listings. Do not stop after finding the first provider. Cross-check airport documentation where possible because many international airports have handlers and fuel concessionaires but no US-style FBO.
+
+For each provider capture its role/type, whether it is ON AIRPORT or a COORDINATOR, services, published contact details/hours when available, and every verified fuel grade/service combination. Keep 100LL/AVGAS and Jet A/Jet A-1 separate. Capture the published fuel price and price-update date when available. If a provider and fuel grade are verified but no current retail price is published, leave price blank; the app will insert a dispatch planning price after research. Never invent a provider, handler, fuel company, contact, fuel grade, availability, or published price.
+
+Only return an empty fbos array after searching ALL of those categories and finding no verifiable operational provider. Explain what was searched in notes.
+Return STRICT JSON {"airports":[{"icao":"","fbos":[{"name":"","provider_type":"FBO|GROUND HANDLER|CARGO HANDLER|FUEL SUPPLIER|INTO-PLANE FUEL|EXECUTIVE TERMINAL|TRIP SUPPORT|OTHER","presence":"ON AIRPORT|COORDINATOR","services":"","contact":"","hours":"","fuels":[{"type":"100LL|AVGAS|JET A|JET A-1|MOGAS|SAF","service":"FULL SERVICE|SELF SERVICE|ASSISTED|INTO-PLANE|HYDRANT|","availability":"AVAILABLE|UNAVAILABLE|NOT PUBLISHED","price":"","price_unit":"USD/GAL|LOCAL/GAL|USD/L|LOCAL/L|","price_updated":""}],"source":""}],"notes":"","sources":[""]}]}.
 Only include facts supported by the public sources you found.`,{web:true,transform:data=>{
    const by=new Map((data.airports||[]).map(a=>[normalizeIcao(a.icao),a]));
    mission.airport_briefings=Array.isArray(mission.airport_briefings)?mission.airport_briefings:[];
-   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(String(fuel.availability||"").toUpperCase()==="AVAILABLE"&&!String(fuel.price||"").trim()){const t=String(fuel.type||"").toUpperCase();const lo=t.includes("JET")?5.25:t.includes("MOGAS")?4.75:5.50,hi=t.includes("JET")?9.75:t.includes("MOGAS")?7.25:9.25;const n=lo+Math.random()*(hi-lo);fuel.price=`$${n.toFixed(2)}`;fuel.price_unit="USD/GAL";fuel.price_updated="DISPATCH"}}}b.fbo_notes=live?.notes||"NO VERIFIED FBO DATA RETURNED";b.fbo_sources=live?.sources||[]}
+   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(String(fuel.availability||"").toUpperCase()==="AVAILABLE"&&!String(fuel.price||"").trim()){const t=String(fuel.type||"").toUpperCase();const lo=t.includes("JET")?5.25:t.includes("MOGAS")?4.75:5.50,hi=t.includes("JET")?9.75:t.includes("MOGAS")?7.25:9.25;const n=lo+Math.random()*(hi-lo);fuel.price=`$${n.toFixed(2)}`;fuel.price_unit="USD/GAL";fuel.price_updated="DISPATCH"}}}b.fbo_notes=live?.notes||"NO VERIFIED GROUND-SUPPORT DATA RETURNED";b.fbo_sources=live?.sources||[]}
    return mission;
  }});
 });
