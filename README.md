@@ -32,3 +32,7 @@ Training/simulation only. AI-generated MEL, legal, performance, fuel-price estim
 
 
 PATCH 27: Cross-platform PDF printing. Trip Sheet and Dispatch print from the in-app rendered pages using the browser print dialog/AirPrint rather than navigating to blob: PDF URLs. Added SAVE / SHARE for native iPad share sheet or desktop PDF download.
+
+
+## PATCH 29
+Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple specific open MEL/CDL/INOP discrepancies; OK and GOOD can still be clean but have meaningful probabilities of a specific deferred item; RANDOM spans poor through pristine states. When the roll requires an item, mission validation enforces that it was actually populated, including FOUND DURING PREFLIGHT when selected. Discrepancies remain generated mission state and are not claims about the real registration.
