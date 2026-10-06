@@ -36,3 +36,12 @@ PATCH 27: Cross-platform PDF printing. Trip Sheet and Dispatch print from the in
 
 ## PATCH 29
 Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple specific open MEL/CDL/INOP discrepancies; OK and GOOD can still be clean but have meaningful probabilities of a specific deferred item; RANDOM spans poor through pristine states. When the roll requires an item, mission validation enforces that it was actually populated, including FOUND DURING PREFLIGHT when selected. Discrepancies remain generated mission state and are not claims about the real registration.
+
+
+## PATCH 34 — mission generation reliability
+- Treats mission concept/job and resolved aircraft identity as authoritative server-side data. The expansion pass can no longer erase title, operation, aircraft type, or verified registration.
+- Restores Job Board itinerary legs if an expansion response omits them.
+- A primary mission timeout with no response no longer tries to repair `{}`; it performs one compact fallback generation using the original request.
+- Mission primary timeout is capped at 60 s, compact fallback at 22 s, and validation correction at 12 s.
+- Existing section-tolerant preservation remains in place.
+- MX directive now also caps excess MEL/CDL/INOP items at the requested maximum.

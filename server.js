@@ -31,7 +31,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 31 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_PLUS_LIVED_IN_MX",primary_timeout_ms:70000,repair_timeout_ms:7000,correction_timeout_ms:20000});
+debugEvent("INFO","PATCH 34 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_AUTHORITATIVE_MERGE",primary_timeout_ms:60000,mission_fallback_ms:22000,correction_timeout_ms:12000});
 
 
 async function awcText(product,icao){
@@ -82,7 +82,7 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
     if(isInteractive) params.reasoning={effort:"low"};
     if(web) params.tools=[{type:"web_search",search_context_size:"low"}];
     else params.text={format:{type:"json_object"}};
-    const primaryTimeout=requestKind==="MISSION"?70000:requestKind==="JOB BOARD"?50000:(web?45000:40000);
+    const primaryTimeout=requestKind==="MISSION"?60000:requestKind==="JOB BOARD"?50000:(web?45000:40000);
     const r=await responseWithTimeout(c,params,primaryTimeout);
     if(r.status==="incomplete") throw new Error(`Primary response incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
     if(r.status==="failed") throw new Error(r.error?.message||"Primary AI request failed.");
@@ -94,8 +94,13 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
   if(!data){
     try{
       setGenerationProgress(progressId,90,"JSON REPAIR","Repairing response formatting");
-      const repairInput=`Convert the following attempted response into ONE valid JSON object only. Preserve its data; do not research or add commentary.\n\n${raw||"{}"}`;
-      const r=await responseWithTimeout(c,{model,input:repairInput,text:{format:{type:"json_object"}},max_output_tokens:10000},7000);
+      const hasRaw=Boolean(raw&&raw.trim());
+      const repairInput=hasRaw
+        ? `Convert the following attempted response into ONE valid JSON object only. Preserve its data; do not research or add commentary.\n\n${raw}`
+        : `The prior generation request timed out before returning usable text. Complete the ORIGINAL REQUEST below now. Be compact: populate every required top-level field and every leg, but keep narrative/basis strings concise. Return exactly one valid JSON object and no commentary.\n\nORIGINAL REQUEST:\n${prompt}`;
+      const fallbackMs=requestKind==="MISSION"&&!hasRaw?22000:7000;
+      const fallbackTokens=requestKind==="MISSION"&&!hasRaw?8000:10000;
+      const r=await responseWithTimeout(c,{model,input:repairInput,text:{format:{type:"json_object"}},max_output_tokens:fallbackTokens,reasoning:{effort:"low"}},fallbackMs);
       data=JSON.parse(String(r.output_text||"{}"));
     }catch(e){
       const detail=primaryError?.message||e?.message||"AI generation failed";
@@ -119,7 +124,7 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
     try{
       setGenerationProgress(progressId,93,"CORRECTING","Correcting generated mission data");
       const correction=`The JSON below was generated for this request but failed application validation. Correct ONLY what is necessary to satisfy the validation error and original output contract. Preserve researched facts and all usable mission/job details. If the original request left controls blank, invent complete assignment values rather than returning a setup-required response. Return one complete JSON object only.\n\nVALIDATION ERROR: ${validationError}\n\nORIGINAL REQUEST:\n${prompt}\n\nGENERATED JSON:\n${JSON.stringify(data)}`;
-      const correctionTimeout=requestKind==="MISSION"?20000:7000;
+      const correctionTimeout=requestKind==="MISSION"?12000:7000;
       const rr=await responseWithTimeout(c,{model,input:correction,text:{format:{type:"json_object"}},max_output_tokens:10000},correctionTimeout);
       let corrected=JSON.parse(String(rr.output_text||"{}"));
       if(transform)corrected=transform(corrected);
@@ -195,6 +200,27 @@ function validateZuluLegs(legs,label="generation"){
   if(!Array.isArray(legs)||!legs.length) throw new Error(`${label} returned no usable legs.`);
   const bad=legs.find(l=>!l.depart_z||!l.arrive_z);
   if(bad) throw new Error(`${label} omitted a valid local ISO time or IANA timezone for leg ${bad.seq||"?"}; retrying.`);
+}
+function mergeAuthoritativeMission(data,x){
+  data=(data&&typeof data==="object"&&!Array.isArray(data))?data:{};
+  const src=(x&&typeof x==="object")?x:{};
+  const concept=(src.concept&&typeof src.concept==="object")?src.concept:{};
+  const job=(src.job&&typeof src.job==="object")?src.job:{};
+  // Earlier stages are authoritative. Expansion may add detail, never erase identity.
+  data.title=String(concept.title||job.title||data.title||"").trim();
+  data.operation=String(concept.operation||job.operation||data.operation||"").trim();
+  data.story=String(concept.story||job.story||data.story||"").trim();
+  data.registration=String(src.registration||src.aircraft_identity?.registration||data.registration||"").trim();
+  data.aircraft_type=String(src.aircraft_identity?.aircraft_type||src.aircraft_type||concept.aircraft_type||job.aircraft_type||data.aircraft_type||"").trim();
+  data.registration_status=src.aircraft_identity?.identity_status||data.registration_status||"VERIFIED PUBLIC MATCH";
+  // Job-board itinerary is authoritative and is a safe structural fallback if expansion omitted legs.
+  if((!Array.isArray(data.legs)||!data.legs.length) && Array.isArray(job.leg_schedule) && job.leg_schedule.length){
+    data.legs=job.leg_schedule.map((l,i)=>({...l,seq:l.seq||i+1}));
+  }
+  data.open_items=Array.isArray(data.open_items)?data.open_items:[];
+  data.paperwork=Array.isArray(data.paperwork)?data.paperwork:[];
+  data.airport_briefings=Array.isArray(data.airport_briefings)?data.airport_briefings:[];
+  return data;
 }
 function finalizeMission(data){
   const title=String(data?.title||"").trim(), story=String(data?.story||"").trim(), operation=String(data?.operation||"").trim(), aircraft=String(data?.aircraft_type||"").trim();
@@ -325,9 +351,10 @@ DISPATCH PACKAGE: For EVERY leg, generate dispatch-issued planning data for a fu
 Payload logic is mission-specific and MUST be recalculated independently for every leg. Do not copy payload from another mission or mechanically repeat the first leg. Track loading and unloading. payload_lb must equal passenger_weight_lb + baggage_lb + cargo_lb + equipment_lb and remain plausible for the selected aircraft. A real aircraft identity is resolved before this mission request. Use aircraft_identity and the supplied registration as authoritative identity inputs for the generated mission. The mission registration MUST exactly equal the supplied real registration, and aircraft_type MUST remain consistent with aircraft_identity. Do not invent, replace, or silently alter the registration. Do not substitute a nearby subtype or family variant. When an exact public match is found, do not clutter the mission story with identity-verification commentary; place identity state only in registration_status. For EVERY leg, return a complete passenger, crew, and cargo manifest. passengers must contain PASSENGERS ONLY, never flight crew. crew must be a separate array with role, full_name and weight_lb. pax must equal passengers.length; crew_count must equal crew.length. If the mission narrative calls for 12 VIPs plus 5 crew, return 12 passengers and 5 crew, not 17 passengers. Passenger entries need full_name, weight_lb, dob (YYYY-MM-DD), and, when that leg crosses an international border, passport_country (ISO 3166-1 alpha-3 three-letter code) and passport_number. Crew identities may be fictional unless the user supplied a name/role. For domestic legs, passport fields may be blank. Use fictional identities for generated people and never copy personal data from public sources. passenger_weight_lb must equal the sum of passenger weight_lb values. cargo_manifest must list every cargo item with description, quantity, weight_lb, hazmat boolean, and when hazmat=true include simulated un_number, proper_shipping_name, hazard_class, packing_group, and handling_notes. cargo_lb must equal the sum of cargo_manifest item weights. Do not hide cargo in generic manifest_summary text. If there is no cargo return an empty array.
 For maintenance, open_items is NOT a general condition narrative. Follow THIS MISSION'S MX EVENT DIRECTIVE above. When it requires discrepancies, actually populate open_items with the required count; do not return a clean airplane. When it permits a clean airplane, an empty open_items array is valid. Do not create generic MX, MONITOR, inspection reminders, condition summaries, or mission-equipment items in open_items. An item may be discovered as status "FOUND DURING PREFLIGHT". Each item must identify MEL/CDL/INOP disposition, an applicable reference/section when known, concrete operational limitations, and pic_simulation: a concise cockpit action telling the PIC how to represent the inoperative component in the flight simulator (for example leave a switch OFF, do not use the affected system, or treat an indication as unavailable). The PIC simulation action must never instruct the user to damage, disable, pull breakers on, or physically alter a real aircraft. If the discrepancy cannot legally be deferred under the applicable MEL/CDL framework, identify it as grounding in the limitation and do not imply dispatch is legal. These are generated mission-state discrepancies, not claims about the real registered aircraft's actual maintenance history.
 Return STRICT JSON {"code":"","title":"","operation":"","story":"","registration":"","registration_status":"VERIFIED PUBLIC MATCH","aircraft_type":"","balance":number,"cruise_plan":{"recommended_altitude":"","basis":""},"mx_profile":{"requested_band":"RANDOM|BAD|OK|GOOD","resolved_condition":"","age_influence":true,"location_factors":[""],"summary":""},"legs":[{"seq":1,"origin":"","destination":"","distance_nm":number,"depart_local":"","arrive_local":"","depart_local_iso":"YYYY-MM-DDTHH:MM","arrive_local_iso":"YYYY-MM-DDTHH:MM","origin_timezone":"IANA timezone","destination_timezone":"IANA timezone","international":false,"alternate_required":false,"alternate_icao":"","cruise_altitude":"","average_wind_temp":"","pax":number,"passengers":[{"full_name":"","weight_lb":number,"dob":"YYYY-MM-DD","passport_country":"","passport_number":""}],"crew_count":number,"crew":[{"role":"PIC|SIC|CABIN CREW|MISSION CREW","full_name":"","weight_lb":number}],"passenger_weight_lb":number,"baggage_lb":number,"cargo_lb":number,"cargo_manifest":[{"description":"","quantity":number,"weight_lb":number,"hazmat":false,"un_number":"","proper_shipping_name":"","hazard_class":"","packing_group":"","handling_notes":""}],"equipment_lb":number,"payload_lb":number,"cargo_description":"","manifest_summary":"","weather_context":"","fuel_plan":"","fuel_release":{"release_fuel":"","taxi_fuel":"","trip_fuel":"","contingency_fuel":"","alternate_fuel":"","reserve_fuel":"","extra_fuel":"","min_departure_fuel":"","planned_landing_fuel":"","fuel_basis":""},"told":{"runway":"","runway_condition":"","wind":"","oat":"","qnh_altimeter":"","takeoff_weight":"","landing_weight":"","v1":"","vr":"","v2":"","takeoff_distance":"","landing_distance":"","performance_basis":""},"wb_clearance":{"zero_fuel_weight":"","takeoff_weight":"","landing_weight":"","cg":"","cg_limits":"","status":"CLR|REVIEW","basis":""},"airport_brief":""}],"open_items":[{"category":"MEL|CDL|INOP","status":"OPEN|FOUND DURING PREFLIGHT","description":"","disposition":"MEL|CDL|INOP","reference":"","limitation":"","pic_simulation":"","source_note":""}],"paperwork":[{"doc_type":"","submit_to":"","requirement":""}],"airport_briefings":[{"icao":"","field_summary":"","runways":"","field_elevation":"","weather":"","limitations":"","customs":"","handling":"","fbos":[{"name":"","services":"","fuels":[{"type":"100LL|AVGAS|JET A|JET A-1","availability":"AVAILABLE|UNAVAILABLE","price":"","price_unit":"USD/GAL|LOCAL/GAL|USD/L|LOCAL/L","price_status":"PUBLISHED","price_updated":""}]}],"notes":"","sources":[]}],"sources":[]}.
-Do not invent FBO names or fuel prices in this generation step. Leave airport_briefings[].fbos empty; a separate live public-data enrichment step supplies real FBOs and published fuel prices. Never claim a generated MEL/legal/performance item is an actual maintenance record. depart_local_iso, arrive_local_iso, origin_timezone and destination_timezone are REQUIRED on every leg. Use valid IANA timezone names. Do NOT calculate depart_z/arrive_z yourself; the server derives them from the local ISO timestamps and IANA timezones.`,{web:false,transform:data=>{data.registration=String(x.registration||x.aircraft_identity?.registration||data.registration||"").trim();data.aircraft_type=String(x.aircraft_identity?.aircraft_type||x.aircraft_type||data.aircraft_type||"").trim();data.registration_status=x.aircraft_identity?.identity_status||data.registration_status||"VERIFIED PUBLIC MATCH";const out=enforceRequestedMx(finalizeMission(data),x.mx_status||x.job?.mx_status||"RANDOM");
+Do not invent FBO names or fuel prices in this generation step. Leave airport_briefings[].fbos empty; a separate live public-data enrichment step supplies real FBOs and published fuel prices. Never claim a generated MEL/legal/performance item is an actual maintenance record. depart_local_iso, arrive_local_iso, origin_timezone and destination_timezone are REQUIRED on every leg. Use valid IANA timezone names. Do NOT calculate depart_z/arrive_z yourself; the server derives them from the local ISO timestamps and IANA timezones.`,{web:false,transform:data=>{data=mergeAuthoritativeMission(data,x);const out=enforceRequestedMx(finalizeMission(data),x.mx_status||x.job?.mx_status||"RANDOM");
  const mx=(out.open_items||[]).filter(i=>["MEL","CDL","INOP"].includes(String(i.category||i.disposition||"").toUpperCase()));
  if(mxDirective.required && mx.length<mxDirective.min) throw new Error(`MX event directive required at least ${mxDirective.min} open MEL/CDL/INOP item(s), but the mission returned ${mx.length}.`);
+ if(mxDirective.required && mx.length>mxDirective.max) out.open_items=out.open_items.filter(i=>!["MEL","CDL","INOP"].includes(String(i.category||i.disposition||"").toUpperCase())).concat(mx.slice(0,mxDirective.max));
  if(mxDirective.preflight && !mx.some(i=>String(i.status||"").toUpperCase()==="FOUND DURING PREFLIGHT")) throw new Error("MX event directive required a FOUND DURING PREFLIGHT discrepancy.");
  return out}});
 });
