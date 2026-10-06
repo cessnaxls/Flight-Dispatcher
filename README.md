@@ -29,3 +29,6 @@ Training/simulation only. AI-generated MEL, legal, performance, fuel-price estim
 - Removed the diversity-seed workaround from Mission Builder flow. Recent missions remain exclusion context only for the concept pass.
 - Aircraft identity status is VERIFIED PUBLIC MATCH or UNRESOLVED; no PLAUSIBLE status.
 - Removed whole-mission rejection based only on immersion-breaking keyword scanning; structural validation remains.
+
+
+PATCH 27: Cross-platform PDF printing. Trip Sheet and Dispatch print from the in-app rendered pages using the browser print dialog/AirPrint rather than navigating to blob: PDF URLs. Added SAVE / SHARE for native iPad share sheet or desktop PDF download.
