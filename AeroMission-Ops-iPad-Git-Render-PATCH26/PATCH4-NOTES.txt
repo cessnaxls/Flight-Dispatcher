@@ -1,0 +1,7 @@
+AeroMission Ops iPad PATCH 4
+- Dispatch Legs/Load now shows only route/times, PAX count, and cargo weight; detailed manifests remain in kneeboard PDF.
+- Added Settings > Units (IMPERIAL/METRIC); setting is sent to AI generation and applies to generated airport/mission figures.
+- New missions/jobs request UTC HH:MMz alongside local times.
+- Fuel marked unavailable shows UNAVAILABLE with no fake/placeholder price.
+- Kneeboard layout has more whitespace, section bands, and less dense typography while retaining passenger/cargo/HAZMAT manifests.
+- Cleaned duplicate function injection from prior app.js patching.

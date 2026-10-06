@@ -1,0 +1,14 @@
+AeroMission Ops iPad / Render - PATCH 11
+
+- Fixed Zulu conversion bug: the server regex was accidentally escaped, so valid local ISO timestamps never matched. New jobs/missions now calculate HH:MMz server-side; cached records are hydrated client-side when timezone metadata exists.
+- Replaced fake 94% timer with server-reported generation phases. Browser now polls real WEB RESEARCH / RESEARCH COMPLETE / STRUCTURING RESULTS / REPAIRING JSON / COMPLETE states.
+- Retained the compact Patch-6-style Legs / Load card instead of another redesign.
+- Kneeboard PDF generator is section-aware: leg headers stay with their summary; passenger, crew, cargo, open-item, and paperwork sections repeat CONT. headings when they cross pages.
+- FBO tables now render one row per provider. Available fuel grades are joined in one cell and prices in one matching cell (for example 100LL / JET A and $8.07 / $8.99). Unavailable grades are not given fake prices.
+- Mission schema separates passengers and crew. PAX no longer includes flight crew; crew_count and crew[] are separate.
+- Mission synthesis rejects missing Zulu inputs and immersion-breaking placeholder/disclaimer language and retries structured synthesis.
+- Builder generation requires exact public aircraft type/tail matching; no nearby subtype substitution and no verification caveats in the mission story.
+- Ops desk can return multiple separate documents from one request.
+- Ops desk is instructed to complete routine missing scenario details itself and not return placeholders/TBD/unknown/pending/unverified stand-ins.
+- Ops documents are forced to .pdf filenames and the PDF writer now paginates/sections long documents cleanly.
+- Debug/error toasts remain visible for 5.5 seconds.

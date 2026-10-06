@@ -1,0 +1,11 @@
+AeroMission Ops — PATCH 10
+
+Fixes the API error: "Web Search cannot be used with JSON mode."
+
+Generation now uses a two-stage AI pipeline:
+1. RESEARCH: Responses API with built-in web_search enabled, normal text output.
+2. SYNTHESIS: a second Responses API call with web_search disabled and JSON mode enabled.
+
+This keeps live web research for aircraft registrations, weather, airports, FBOs, fuel pricing, etc., while making the final response reliably parseable as JSON.
+
+JSON synthesis retains up to three retries without re-running web research each time.

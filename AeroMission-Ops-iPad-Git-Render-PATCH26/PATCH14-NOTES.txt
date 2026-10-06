@@ -1,0 +1,7 @@
+AeroMission Ops PATCH 14
+
+- Mission Builder now displays Job Board operation types even when the AI-generated operation is not one of the fixed dropdown presets.
+- Loaded Job Board assignments get a dedicated confirmation card in Mission Builder; an older mission is no longer shown directly beneath the loaded draft, which made it look like the job had not transferred.
+- Mission/job validation failures now receive one fast JSON-only corrective pass using the already researched result instead of immediately failing or repeating web research.
+- Blank Mission Builder controls remain AI-decides and correction explicitly forbids setup-required output.
+- Existing debug log records initial validation failures and corrective-pass results.
