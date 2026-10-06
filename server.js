@@ -31,7 +31,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 34 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_AUTHORITATIVE_MERGE",primary_timeout_ms:60000,mission_fallback_ms:22000,correction_timeout_ms:12000});
+debugEvent("INFO","PATCH 35 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_AUTHORITATIVE_MERGE",primary_timeout_ms:60000,mission_fallback_ms:22000,correction_timeout_ms:12000});
 
 
 async function awcText(product,icao){
@@ -116,10 +116,20 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
     debugEvent("COMPLETE",`${requestKind} generation completed`,{id:progressId,elapsed_ms:Date.now()-started});
     return res.json(data);
   }catch(e){
+    const validationError=e?.message||String(e);
+    // PATCH 35: NEVER send a mission into the old correction/abort loop. Earlier
+    // stages are authoritative and the mission transform performs deterministic
+    // recovery. If a residual section validator still objects, preserve the mission
+    // and let downstream enrichment/rendering use the available data.
+    if(requestKind==="MISSION" && data && typeof data==="object" && !Array.isArray(data)){
+      data._section_repair_warning=validationError;
+      debugEvent("WARN","MISSION validation issue preserved; no abort/correction request",{id:progressId,error:validationError,elapsed_ms:Date.now()-started});
+      setGenerationProgress(progressId,100,"COMPLETE","Mission preserved; validation issue recorded in Debug");
+      return res.json(data);
+    }
     // PATCH 14: validation failures get one fast corrective pass instead of
     // throwing away an otherwise useful researched response. This pass does
     // not repeat web search, so it stays quick and preserves researched facts.
-    const validationError=e?.message||String(e);
     debugEvent("WARN",`${requestKind} validation failed; attempting correction`,{id:progressId,error:validationError,elapsed_ms:Date.now()-started});
     try{
       setGenerationProgress(progressId,93,"CORRECTING","Correcting generated mission data");
@@ -216,6 +226,22 @@ function mergeAuthoritativeMission(data,x){
   // Job-board itinerary is authoritative and is a safe structural fallback if expansion omitted legs.
   if((!Array.isArray(data.legs)||!data.legs.length) && Array.isArray(job.leg_schedule) && job.leg_schedule.length){
     data.legs=job.leg_schedule.map((l,i)=>({...l,seq:l.seq||i+1}));
+  }
+  // PATCH 35: Mission generation is fail-open. If the expansion model omits its legs,
+  // rebuild the route from the already-approved concept/job instead of starting another
+  // AI correction request and eventually aborting the whole mission.
+  if(!Array.isArray(data.legs)||!data.legs.length){
+    const routeText=[concept.route_concept,concept.start,concept.story,job.route,job.origin,job.destination,src.start].filter(Boolean).join(" ");
+    const codes=[...routeText.toUpperCase().matchAll(/\b[A-Z]{4}\b/g)].map(m=>m[0]).filter((v,i,a)=>a.indexOf(v)===i);
+    if(codes.length>=2){
+      data.legs=codes.slice(0,Math.max(2,Number(concept.legs)||codes.length)).reduce((a,_,i,arr)=>{
+        if(i>=arr.length-1)return a;
+        const depH=(9+i*2)%24, arrH=(depH+1)%24;
+        a.push({seq:i+1,origin:arr[i],destination:arr[i+1],depart_z:String(depH).padStart(2,"0")+":00z",arrive_z:String(arrH).padStart(2,"0")+":30z",passengers:[],crew:[],cargo_manifest:[]});
+        return a;
+      },[]);
+      data._route_recovery_warning="Expansion omitted legs; route structure was recovered from the authoritative mission concept.";
+    }
   }
   data.open_items=Array.isArray(data.open_items)?data.open_items:[];
   data.paperwork=Array.isArray(data.paperwork)?data.paperwork:[];
@@ -353,9 +379,9 @@ For maintenance, open_items is NOT a general condition narrative. Follow THIS MI
 Return STRICT JSON {"code":"","title":"","operation":"","story":"","registration":"","registration_status":"VERIFIED PUBLIC MATCH","aircraft_type":"","balance":number,"cruise_plan":{"recommended_altitude":"","basis":""},"mx_profile":{"requested_band":"RANDOM|BAD|OK|GOOD","resolved_condition":"","age_influence":true,"location_factors":[""],"summary":""},"legs":[{"seq":1,"origin":"","destination":"","distance_nm":number,"depart_local":"","arrive_local":"","depart_local_iso":"YYYY-MM-DDTHH:MM","arrive_local_iso":"YYYY-MM-DDTHH:MM","origin_timezone":"IANA timezone","destination_timezone":"IANA timezone","international":false,"alternate_required":false,"alternate_icao":"","cruise_altitude":"","average_wind_temp":"","pax":number,"passengers":[{"full_name":"","weight_lb":number,"dob":"YYYY-MM-DD","passport_country":"","passport_number":""}],"crew_count":number,"crew":[{"role":"PIC|SIC|CABIN CREW|MISSION CREW","full_name":"","weight_lb":number}],"passenger_weight_lb":number,"baggage_lb":number,"cargo_lb":number,"cargo_manifest":[{"description":"","quantity":number,"weight_lb":number,"hazmat":false,"un_number":"","proper_shipping_name":"","hazard_class":"","packing_group":"","handling_notes":""}],"equipment_lb":number,"payload_lb":number,"cargo_description":"","manifest_summary":"","weather_context":"","fuel_plan":"","fuel_release":{"release_fuel":"","taxi_fuel":"","trip_fuel":"","contingency_fuel":"","alternate_fuel":"","reserve_fuel":"","extra_fuel":"","min_departure_fuel":"","planned_landing_fuel":"","fuel_basis":""},"told":{"runway":"","runway_condition":"","wind":"","oat":"","qnh_altimeter":"","takeoff_weight":"","landing_weight":"","v1":"","vr":"","v2":"","takeoff_distance":"","landing_distance":"","performance_basis":""},"wb_clearance":{"zero_fuel_weight":"","takeoff_weight":"","landing_weight":"","cg":"","cg_limits":"","status":"CLR|REVIEW","basis":""},"airport_brief":""}],"open_items":[{"category":"MEL|CDL|INOP","status":"OPEN|FOUND DURING PREFLIGHT","description":"","disposition":"MEL|CDL|INOP","reference":"","limitation":"","pic_simulation":"","source_note":""}],"paperwork":[{"doc_type":"","submit_to":"","requirement":""}],"airport_briefings":[{"icao":"","field_summary":"","runways":"","field_elevation":"","weather":"","limitations":"","customs":"","handling":"","fbos":[{"name":"","services":"","fuels":[{"type":"100LL|AVGAS|JET A|JET A-1","availability":"AVAILABLE|UNAVAILABLE","price":"","price_unit":"USD/GAL|LOCAL/GAL|USD/L|LOCAL/L","price_status":"PUBLISHED","price_updated":""}]}],"notes":"","sources":[]}],"sources":[]}.
 Do not invent FBO names or fuel prices in this generation step. Leave airport_briefings[].fbos empty; a separate live public-data enrichment step supplies real FBOs and published fuel prices. Never claim a generated MEL/legal/performance item is an actual maintenance record. depart_local_iso, arrive_local_iso, origin_timezone and destination_timezone are REQUIRED on every leg. Use valid IANA timezone names. Do NOT calculate depart_z/arrive_z yourself; the server derives them from the local ISO timestamps and IANA timezones.`,{web:false,transform:data=>{data=mergeAuthoritativeMission(data,x);const out=enforceRequestedMx(finalizeMission(data),x.mx_status||x.job?.mx_status||"RANDOM");
  const mx=(out.open_items||[]).filter(i=>["MEL","CDL","INOP"].includes(String(i.category||i.disposition||"").toUpperCase()));
- if(mxDirective.required && mx.length<mxDirective.min) throw new Error(`MX event directive required at least ${mxDirective.min} open MEL/CDL/INOP item(s), but the mission returned ${mx.length}.`);
+ if(mxDirective.required && mx.length<mxDirective.min) out._mx_generation_warning=`Requested at least ${mxDirective.min} open MEL/CDL/INOP item(s); generation returned ${mx.length}.`;
  if(mxDirective.required && mx.length>mxDirective.max) out.open_items=out.open_items.filter(i=>!["MEL","CDL","INOP"].includes(String(i.category||i.disposition||"").toUpperCase())).concat(mx.slice(0,mxDirective.max));
- if(mxDirective.preflight && !mx.some(i=>String(i.status||"").toUpperCase()==="FOUND DURING PREFLIGHT")) throw new Error("MX event directive required a FOUND DURING PREFLIGHT discrepancy.");
+ if(mxDirective.preflight && !mx.some(i=>String(i.status||"").toUpperCase()==="FOUND DURING PREFLIGHT")) out._mx_generation_warning=(out._mx_generation_warning?out._mx_generation_warning+" ":"")+"Requested preflight discrepancy was not returned.";
  return out}});
 });
 
