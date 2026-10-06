@@ -31,7 +31,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 29 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_PLUS_LIVED_IN_MX",primary_timeout_ms:70000,repair_timeout_ms:7000,correction_timeout_ms:20000});
+debugEvent("INFO","PATCH 31 generation engine loaded",{mode:"MISSION_FIRST_STAGED_GENERATION_PLUS_LIVED_IN_MX",primary_timeout_ms:70000,repair_timeout_ms:7000,correction_timeout_ms:20000});
 
 
 async function awcText(product,icao){
@@ -128,6 +128,27 @@ async function aiJSON(req,res,prompt,{web=true,transform=null}={}){
       return res.json(corrected);
     }catch(e2){
       const detail=e2?.message||validationError;
+      // PATCH 31: mission validation is section-tolerant. If the creative/operational
+      // mission itself is usable, do not discard it because a secondary section
+      // (MX, paperwork, manifest detail, etc.) failed a corrective pass. The
+      // original transform mutates authoritative aircraft identity before most
+      // section checks, so preserve those successful values and let downstream
+      // enrichment/rendering consume the usable mission.
+      if(requestKind==="MISSION" && data && typeof data==="object" && !Array.isArray(data)){
+        try{
+          const usableLegs=Array.isArray(data.legs)?data.legs.map(finalizeLeg).filter(l=>l.origin&&l.destination):[];
+          if(String(data.title||"").trim() && String(data.registration||"").trim() && String(data.aircraft_type||"").trim() && usableLegs.length){
+            data.legs=usableLegs;
+            data.open_items=Array.isArray(data.open_items)?data.open_items:[];
+            data.paperwork=Array.isArray(data.paperwork)?data.paperwork:[];
+            data.airport_briefings=Array.isArray(data.airport_briefings)?data.airport_briefings:[];
+            data._section_repair_warning=validationError;
+            debugEvent("WARN","MISSION section correction timed out; preserving usable mission",{id:progressId,error:detail,initial_error:validationError,elapsed_ms:Date.now()-started});
+            setGenerationProgress(progressId,100,"COMPLETE","Mission preserved; secondary section will use available data");
+            return res.json(data);
+          }
+        }catch{}
+      }
       debugEvent("ERROR",`${requestKind} validation correction failed`,{id:progressId,error:detail,initial_error:validationError,elapsed_ms:Date.now()-started});
       setGenerationProgress(progressId,100,"FAILED",detail);
       return res.status(502).json({error:`Generated data failed validation. ${detail}`,generation_id:progressId});
