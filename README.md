@@ -45,3 +45,10 @@ Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple 
 - Mission primary timeout is capped at 60 s, compact fallback at 22 s, and validation correction at 12 s.
 - Existing section-tolerant preservation remains in place.
 - MX directive now also caps excess MEL/CDL/INOP items at the requested maximum.
+
+
+## PATCH 36
+- Mission expansion is now a lean fast stage; full dispatch calculations/doc contents are not requested in the blocking expansion call.
+- Mission primary timeout reduced to 45 s and compact fallback to 12 s.
+- If both AI expansion attempts time out, the server returns a deterministic mission shell from the authoritative concept/job + verified aircraft instead of returning HTTP 502.
+- Weather and ground-support enrichment continue after mission creation; dispatch paperwork requirements remain mission-driven.
