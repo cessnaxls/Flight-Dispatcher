@@ -1,0 +1,8 @@
+AeroMission Ops iPad PATCH 5
+- Legs/Load has a distinct blue movement header and individual leg tiles.
+- Legs/Load format: ICAO -> ICAO (NM), Zulu time, PAX, CARGO.
+- Zulu times are calculated server-side from local ISO wall-clock time + IANA timezone using Intl, including DST/non-whole-hour offsets.
+- Job and mission prompts require four-letter ICAO identifiers only; invalid airport identifiers are rejected from generated results.
+- Job Board difficulty badge no longer appends a percent sign.
+- ALL LEVELS explicitly varies difficulty; board generation explicitly varies leg counts from 1-4.
+- Each Job Board card includes an operation-category badge.

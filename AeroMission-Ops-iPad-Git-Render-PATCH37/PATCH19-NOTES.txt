@@ -1,0 +1,6 @@
+AeroMission Ops PATCH 19
+- Removed Ops Coordination from the main workflow/navigation; dispatch-required paperwork is consolidated into the Dispatch PDF.
+- Dispatch PDF now includes a per-leg Fuel Release, TOLD Planning Report, and W/B CLR block, plus manifests and dispatch release material.
+- Non-dispatch-issued documents are excluded from the dispatch PDF.
+- Job Board route endpoints are now derived from the first origin and final destination of the complete leg itinerary.
+- Existing real-registration and MX-band continuity behavior retained.

@@ -1,0 +1,12 @@
+AeroMission Ops iPad PATCH 2
+- Mission Builder fields blank at startup and after generation.
+- Payload recalculated/reconciled independently per leg.
+- Random aircraft requires a real publicly documented registration/type match.
+- ALL LEVELS difficulty option in Mission Builder and Job Board.
+- Build Mission From Job redirects to Mission Builder.
+- Ops Coordination messenger with generated PDF document inbox.
+- Mission paperwork submission remains on Dispatch.
+- Numeric plausible randomized fuel prices when published pricing is unavailable.
+- Cleaner Helvetica PDF typography.
+- Expanded Live Flight analysis panel and duty-period logging controls.
+- OpenAI default updated to gpt-6-luna with gpt-6-luna/sol/astra and gpt-5.6-sol choices.

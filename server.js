@@ -31,7 +31,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 36 generation engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
+debugEvent("INFO","PATCH 37 generation engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
 
 
 async function awcText(product,icao){
@@ -82,7 +82,7 @@ async function aiJSON(req,res,prompt,{web=true,transform=null,fallback=null}={})
     if(isInteractive) params.reasoning={effort:"low"};
     if(web) params.tools=[{type:"web_search",search_context_size:"low"}];
     else params.text={format:{type:"json_object"}};
-    const primaryTimeout=requestKind==="MISSION"?45000:requestKind==="JOB BOARD"?50000:(web?45000:40000);
+    const primaryTimeout=requestKind==="MISSION"?45000:requestKind==="JOB BOARD"?50000:(req.path==="/api/fbo/enrich"?20000:web?45000:40000);
     const r=await responseWithTimeout(c,params,primaryTimeout);
     if(r.status==="incomplete") throw new Error(`Primary response incomplete${r.incomplete_details?.reason?`: ${r.incomplete_details.reason}`:""}`);
     if(r.status==="failed") throw new Error(r.error?.message||"Primary AI request failed.");
@@ -98,12 +98,13 @@ async function aiJSON(req,res,prompt,{web=true,transform=null,fallback=null}={})
       const repairInput=hasRaw
         ? `Convert the following attempted response into ONE valid JSON object only. Preserve its data; do not research or add commentary.\n\n${raw}`
         : `The prior generation request timed out before returning usable text. Complete the ORIGINAL REQUEST below now. Be compact: populate every required top-level field and every leg, but keep narrative/basis strings concise. Return exactly one valid JSON object and no commentary.\n\nORIGINAL REQUEST:\n${prompt}`;
-      const fallbackMs=requestKind==="MISSION"&&!hasRaw?12000:7000;
+      const fallbackMs=req.path==="/api/fbo/enrich"?3000:requestKind==="MISSION"&&!hasRaw?12000:7000;
       const fallbackTokens=requestKind==="MISSION"&&!hasRaw?4500:10000;
       const r=await responseWithTimeout(c,{model,input:repairInput,text:{format:{type:"json_object"}},max_output_tokens:fallbackTokens,reasoning:{effort:"low"}},fallbackMs);
       data=JSON.parse(String(r.output_text||"{}"));
     }catch(e){
       const detail=primaryError?.message||e?.message||"AI generation failed";
+      if(req.path==="/api/fbo/enrich") { data={airports:[]}; debugEvent("WARN","GROUND SUPPORT research timed out; keeping existing mission data",{id:progressId,error:detail}); }
       if(requestKind==="MISSION" && typeof fallback==="function"){
         try{
           data=fallback(detail);
@@ -317,7 +318,7 @@ Return STRICT JSON {"airports":[{"icao":"","fbos":[{"name":"","provider_type":"F
 Only include facts supported by the public sources you found.`,{web:true,transform:data=>{
    const by=new Map((data.airports||[]).map(a=>[normalizeIcao(a.icao),a]));
    mission.airport_briefings=Array.isArray(mission.airport_briefings)?mission.airport_briefings:[];
-   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(String(fuel.availability||"").toUpperCase()==="AVAILABLE"&&!String(fuel.price||"").trim()){const t=String(fuel.type||"").toUpperCase();const lo=t.includes("JET")?5.25:t.includes("MOGAS")?4.75:5.50,hi=t.includes("JET")?9.75:t.includes("MOGAS")?7.25:9.25;const n=lo+Math.random()*(hi-lo);fuel.price=`$${n.toFixed(2)}`;fuel.price_unit="USD/GAL";fuel.price_updated="DISPATCH"}}}b.fbo_notes=live?.notes||"NO VERIFIED GROUND-SUPPORT DATA RETURNED";b.fbo_sources=live?.sources||[]}
+   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||b.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(String(fuel.availability||"").toUpperCase()==="AVAILABLE"&&!String(fuel.price||"").trim()){const t=String(fuel.type||"").toUpperCase();const lo=t.includes("JET")?5.25:t.includes("MOGAS")?4.75:5.50,hi=t.includes("JET")?9.75:t.includes("MOGAS")?7.25:9.25;const n=lo+Math.random()*(hi-lo);fuel.price=`$${n.toFixed(2)}`;fuel.price_unit="USD/GAL";fuel.price_updated="DISPATCH"}}}b.fbo_notes=live?.notes||b.fbo_notes||"GROUND-SUPPORT RESEARCH UNAVAILABLE — RETRY LATER";b.fbo_sources=live?.sources||[]}
    return mission;
  }});
 });
