@@ -308,22 +308,28 @@ app.post("/api/research/section",async(req,res)=>{
  if(section==="airport"&&!airport||section==="leg"&&!leg)return res.status(400).json({error:"Research target missing"});
  const prompt=section==="airport"?`Research airport ${key} for an aviation simulation dispatch briefing. Search official aeronautical publications and airport/operator websites, fuel supplier/FBO sites and current price listings. Return JSON fields: icao, field_summary, field_elevation, runways, frequencies, limitations, customs, handling, fbos (array of {name,provider_type,presence,services,contact,fuels:[{type,availability,price,price_unit,price_updated,price_status}],source}), sources (URLs), research_status. Fuel prices must be sourced and dated; if unavailable use price_status 'NOT PUBLICLY POSTED' and price 'PRICE QUOTE REQUIRED', never guess. List all verifiable operators rather than just the first. Keep runway information factual and dated. Airport context: ${JSON.stringify(airport).slice(0,3000)}`:
  `Research aircraft-specific flight-planning data for SIMULATION leg ${leg.seq} ${leg.origin}-${leg.destination} ${leg.distance_nm} NM on ${m.registration} ${m.aircraft_type}. Weather ${JSON.stringify(leg.weather||{}) .slice(0,1800)}; manifest ${JSON.stringify({crew:leg.crew,passengers:leg.passengers,cargo_lb:leg.cargo_lb,baggage_lb:leg.baggage_lb,equipment_lb:leg.equipment_lb}).slice(0,1700)}. Research type-specific fuel consumption, capacity, empty/max weights, published performance references and route context. Calculate internally consistent fuel quantities and gross weights, showing assumptions, units and sources. Return JSON {fuel_release:{release_fuel,taxi_fuel,trip_fuel,contingency_fuel,alternate_fuel,reserve_fuel,extra_fuel,planned_landing_fuel,fuel_basis},told:{runway,runway_condition,wind,oat,qnh_altimeter,takeoff_weight,landing_weight,v1,vr,v2,takeoff_distance,landing_distance,status},weight_balance:{zfw,tow,ldw,cg,cg_limits,status},planning_status,sources:[URLs]}. For performance V-speeds, distance and CG, ONLY return numeric figures if supported by matching AFM/POH data AND actual inputs; otherwise use explicit 'AFM/CONFIGURATION VERIFICATION REQUIRED' values. Never represent illustrative estimates as certified or approved. Never invent runway conditions.`;
- const contract=JSON.stringify(CONTRACTS[section]);
- const exactPrompt=`${prompt}\nMANDATORY EXACT OUTPUT CONTRACT (keys and nested objects): ${contract}. Return ONLY one JSON object with these keys. Include every key. For unavailable data, write a specific explanation or estimate with methodology, NEVER fabricate a published price, source, approved V-speed, or CG. For numeric simulation estimates show quantities, units, assumptions, and distinguish them from approved values. Do not rename keys. Prefer multiple focused source searches, official airport/operator data, and dated fuel listings. For sources return real URLs only.`;
- try{const job=await researchSection(client(req),"gpt-6-luna",exactPrompt);res.json({job_id:job.job_id,status:job.status});}
+ const researchPrompt=`${prompt}\nResearch freely in natural language. Include verifiable URLs, dates, assumptions and numerical simulation estimates when defensible. Do NOT obey a rigid JSON schema; prioritize substantive findings. Do not invent official prices, approvals or AFM-certified values.`;
+ try{const job=await researchSection(client(req),"gpt-6-luna",researchPrompt);res.json({job_id:job.job_id,status:job.status});}
  catch(e){debugEvent("WARN","AI research launch failed",{section,key,error:e.message});res.status(503).json({error:e.message})}
 });
 
 app.post("/api/research/poll",async(req,res)=>{
- const {job_id,mission,section,key}=req.body||{};
+ const {job_id,mission,section,key,phase="research"}=req.body||{};
  if(!/^resp_[A-Za-z0-9_-]+$/.test(String(job_id||"")))return res.status(400).json({error:"Invalid research job ID"});
- try{const result=await pollResearch(client(req),job_id);
- if(result.status!=="completed")return res.json(result);
- const missing=validateSection(section,result.data,String(key||"").toUpperCase());
- const m=mission||{};mergeResearch(m,result.data,section,String(key||"").toUpperCase());
- m.research_audit=m.research_audit||{};m.research_audit[`${section}:${key}`]={missing,completed_at:new Date().toISOString(),sources:result.data.sources||[]};
- debugEvent("COMPLETE","AI background research completed",{section,key});res.json({status:"completed",mission:m});
- }catch(e){debugEvent("WARN","AI background research failed",{section,key,error:e.message});res.status(503).json({error:e.message})}
+ try{
+  const result=await pollResearch(client(req),job_id,{raw:true});
+  if(result.status!=="completed")return res.json(result);
+  if(phase==="research"){
+   const interpretationPrompt=`You are the AeroMission dispatch DATA INTERPRETER. Analyze the following research and map it into the exact application fields. Research is unstructured; extract relevant facts and calculate coherent SIMULATION estimates where supportable. Return a single JSON object, with no prose outside it. This is an OUTPUT contract only, not a restriction on research. Section: ${section}; key: ${key}. Fields: ${JSON.stringify(CONTRACTS[section])}. Existing target: ${JSON.stringify(section==="airport"?(mission?.airport_briefings||[]).find(x=>x.icao===key):(mission?.legs||[]).find(x=>String(x.seq)===String(key))).slice(0,4500)}. Original research: ${result.raw.slice(0,21000)}. Cite sources from the research, distinguish sourced data from simulation estimates, and use clear explanation when unverified. Do not invent approved aircraft performance or fuel quotes.`;
+   const job=await researchSection(client(req),"gpt-6-luna",interpretationPrompt,{web:false});
+   return res.json({status:job.status,job_id:job.job_id,phase:"interpretation"});
+  }
+  const data=result.data;
+  const missing=validateSection(section,data,String(key||"").toUpperCase());
+  const m=mission||{};mergeResearch(m,data,section,String(key||"").toUpperCase());
+  m.research_audit=m.research_audit||{};m.research_audit[`${section}:${key}`]={missing,completed_at:new Date().toISOString(),sources:data.sources||[],method:"AI_RESEARCH_THEN_AI_INTERPRETATION"};
+  debugEvent("COMPLETE","AI interpreted research completed",{section,key,missing:missing.length});res.json({status:"completed",mission:m});
+ }catch(e){debugEvent("WARN","AI research/interpretation failed",{section,key,error:e.message});res.status(503).json({error:e.message})}
 });
 
 app.post("/api/fbo/enrich",(req,res)=>{

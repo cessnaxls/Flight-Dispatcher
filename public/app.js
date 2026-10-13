@@ -104,11 +104,12 @@ async function enrichSavedMission(code){
     const at=db.missions.findIndex(x=>x.code===code);if(at<0)return;
     try{const launched=await api("/api/research/section",{mission:db.missions[at],...target});
       if(!launched.job_id)throw Error("Research did not return a job ID");
-      let result=launched;
+      let result=launched;let activeJob=launched.job_id;let phase="research";
       while(result.status==="queued"||result.status==="in_progress"){
         await new Promise(resolve=>setTimeout(resolve,4000));
         const current=db.missions.find(x=>x.code===code);if(!current)return;
-        result=await api("/api/research/poll",{job_id:launched.job_id,mission:current,...target});
+        result=await api("/api/research/poll",{job_id:activeJob,phase,mission:current,...target});
+        if(result.phase==="interpretation"&&result.job_id){activeJob=result.job_id;phase="interpretation";}
       }
       const updated=result.mission;
       if(updated?.code===code&&Array.isArray(updated.legs)){db.missions[at]=updated;save();if(db.selectedMission===code&&page==="dispatch")render()}

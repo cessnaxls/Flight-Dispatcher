@@ -1,13 +1,13 @@
 // PATCH 41: long-running web research using background Responses.
-export async function researchSection(openai,model,prompt){
- const r=await openai.responses.create({model,input:prompt+'\nReturn one JSON object only. Cite source URLs and retrieval dates. Separate sourced facts from calculated simulation estimates.',tools:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:4500,background:true,store:true});
+export async function researchSection(openai,model,prompt,options={}){
+ const r=await openai.responses.create({model,input:prompt+'\nReturn one JSON object only. Cite source URLs and retrieval dates. Separate sourced facts from calculated simulation estimates.',tools:options.web===false?[]:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:4500,background:true,store:true});
  return {job_id:r.id,status:r.status};
 }
-export async function pollResearch(openai,id){
+export async function pollResearch(openai,id,options={}){
  const r=await openai.responses.retrieve(id);
  if(['queued','in_progress'].includes(r.status))return {job_id:id,status:r.status};
  if(r.status!=='completed')throw Error(r.error?.message||`Research ended: ${r.status}`);
- const s=String(r.output_text||'');const a=s.indexOf('{'),b=s.lastIndexOf('}');
+ const s=String(r.output_text||'');if(options.raw)return {job_id:id,status:'completed',raw:s};const a=s.indexOf('{'),b=s.lastIndexOf('}');
  if(a<0||b<a)throw Error('No structured research returned');
  return {job_id:id,status:'completed',data:JSON.parse(s.slice(a,b+1))};
 }
