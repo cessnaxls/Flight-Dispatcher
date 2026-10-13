@@ -102,11 +102,19 @@ async function enrichSavedMission(code){
   targets.push(...(snapshot?.legs||[]).map(l=>({section:"leg",key:String(l.seq)})));
   for(const target of targets){
     const at=db.missions.findIndex(x=>x.code===code);if(at<0)return;
-    try{const updated=await api("/api/research/section",{mission:db.missions[at],...target});
+    try{const launched=await api("/api/research/section",{mission:db.missions[at],...target});
+      if(!launched.job_id)throw Error("Research did not return a job ID");
+      let result=launched;
+      while(result.status==="queued"||result.status==="in_progress"){
+        await new Promise(resolve=>setTimeout(resolve,4000));
+        const current=db.missions.find(x=>x.code===code);if(!current)return;
+        result=await api("/api/research/poll",{job_id:launched.job_id,mission:current,...target});
+      }
+      const updated=result.mission;
       if(updated?.code===code&&Array.isArray(updated.legs)){db.missions[at]=updated;save();if(db.selectedMission===code&&page==="dispatch")render()}
     }catch(e){console.warn("AI research section failed",target,e)}
   }
-  for(const [endpoint,label] of [["/api/airport/reference","AERODROME REFERENCE"],["/api/weather/enrich","WEATHER"],["/api/fbo/enrich","GROUND SUPPORT / FUEL"]]){
+  for(const [endpoint,label] of [["/api/airport/reference","AERODROME REFERENCE"],["/api/weather/enrich","WEATHER"]]){
     const current=db.missions.find(x=>x.code===code);
     if(!current)return;
     try{

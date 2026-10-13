@@ -1,10 +1,15 @@
-// PATCH 40: independent, bounded, web-grounded research. Never alters mission generation.
-export async function researchSection(openai,model,prompt,timeout=32000){
- const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),timeout);
- try{
-  const r=await openai.responses.create({model,input:prompt+'\nReturn one JSON object only. Cite source URLs and retrieval dates. Distinguish observed facts, derived figures and simulation estimates. Never fabricate AFM-approved figures, current fuel prices, runway status or authorizations.',tools:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:3800},{signal:ac.signal});
-  const s=String(r.output_text||'');const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<a)throw Error('No structured research returned');return JSON.parse(s.slice(a,b+1));
- }finally{clearTimeout(timer)}
+// PATCH 41: long-running web research using background Responses.
+export async function researchSection(openai,model,prompt){
+ const r=await openai.responses.create({model,input:prompt+'\nReturn one JSON object only. Cite source URLs and retrieval dates. Separate sourced facts from calculated simulation estimates.',tools:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:4500,background:true,store:true});
+ return {job_id:r.id,status:r.status};
+}
+export async function pollResearch(openai,id){
+ const r=await openai.responses.retrieve(id);
+ if(['queued','in_progress'].includes(r.status))return {job_id:id,status:r.status};
+ if(r.status!=='completed')throw Error(r.error?.message||`Research ended: ${r.status}`);
+ const s=String(r.output_text||'');const a=s.indexOf('{'),b=s.lastIndexOf('}');
+ if(a<0||b<a)throw Error('No structured research returned');
+ return {job_id:id,status:'completed',data:JSON.parse(s.slice(a,b+1))};
 }
 export function mergeResearch(mission,data,section,key){
  if(section==='airport'){
