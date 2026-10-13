@@ -1,0 +1,1 @@
+PATCH 44: Creates airport briefing objects before research; fixes airport target rejection; requests natural language research; preserves stage errors for diagnosis; records completion; warns when PDF generated before research completion. Mission generation unchanged.\n
