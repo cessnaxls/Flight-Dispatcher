@@ -1,0 +1,7 @@
+PATCH 42 — EXACT DISPATCH FIELD CONTRACT
+- Preserves existing mission-generation endpoints and logic.
+- AI airport and leg research now receive an explicit contract matching the frontend PDF fields.
+- Validates research result shape and target airport before merging.
+- Records missing fields and research source URLs in mission.research_audit.
+- Research continues through existing background/polling system.
+- Numerical estimates remain simulation-only, never certified AFM values.
