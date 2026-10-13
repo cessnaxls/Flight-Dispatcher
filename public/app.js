@@ -107,12 +107,20 @@ async function enrichSavedMission(code){
     const at=db.missions.findIndex(x=>x.code===code);if(at<0)return;
     try{const launched=await api("/api/research/section",{mission:db.missions[at],...target});
       if(!launched.job_id)throw Error("Research did not return a job ID");
-      let result=launched;let activeJob=launched.job_id;let phase="research";
+      let result=launched;let activeJob=launched.job_id;let phase="research";let researchText="";let synthesisRetries=0;
       while(result.status==="queued"||result.status==="in_progress"){
         await new Promise(resolve=>setTimeout(resolve,4000));
         const current=db.missions.find(x=>x.code===code);if(!current)return;
-        result=await api("/api/research/poll",{job_id:activeJob,phase,mission:current,...target});
-        if(result.phase==="interpretation"&&result.job_id){activeJob=result.job_id;phase="interpretation";}
+        try{result=await api("/api/research/poll",{job_id:activeJob,phase,mission:current,...target});}
+        catch(error){
+          if(phase==="interpretation"&&researchText&&synthesisRetries<2){
+            synthesisRetries++;
+            result=await api("/api/research/synthesize",{mission:current,...target,raw:researchText});
+            activeJob=result.job_id;continue;
+          }
+          throw error;
+        }
+        if(result.phase==="interpretation"&&result.job_id){activeJob=result.job_id;phase="interpretation";if(result.research_text)researchText=result.research_text;}
       }
       const updated=result.mission;
       if(updated?.code===code&&Array.isArray(updated.legs)){db.missions[at]=updated;save();if(db.selectedMission===code&&page==="dispatch")render()}

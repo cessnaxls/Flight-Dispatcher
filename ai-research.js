@@ -1,6 +1,6 @@
 // PATCH 41: long-running web research using background Responses.
 export async function researchSection(openai,model,prompt,options={}){
- const r=await openai.responses.create({model,input:prompt+'\nCite source URLs and retrieval dates. Separate sourced facts from calculated simulation estimates. For research stage return a detailed narrative; for interpretation stage return JSON.',tools:options.web===false?[]:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:4500,background:true,store:true});
+ const r=await openai.responses.create({model,input:prompt+'\nCite source URLs and retrieval dates. Separate sourced facts from calculated simulation estimates. For research stage return a detailed narrative; for interpretation stage return JSON.',tools:options.web===false?[]:[{type:'web_search',search_context_size:'medium'}],reasoning:{effort:'low'},max_output_tokens:options.web===false?6500:5500,background:true,store:true,...(options.web===false?{text:{format:{type:"json_object"}}}:{})});
  return {job_id:r.id,status:r.status};
 }
 export async function pollResearch(openai,id,options={}){

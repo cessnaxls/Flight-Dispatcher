@@ -59,3 +59,5 @@ Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple 
 - When AI does not supply fuel planning, leg PDF shows **clearly labeled simulation-only** approximate gallons based on generic aircraft category assumptions; never an operational release.
 - Approved V-speeds, runway performance, actual empty-weight/CG, certified W&B and published fuel pricing cannot safely be synthesized. These remain explicitly flagged for aircraft-specific verification, not invented.
 - Server requires outbound access to davidmegginson.github.io. Source: https://ourairports.com/data/. OurAirports data is not certified for navigation.
+
+PATCH 46 — PATCH 10-style web research followed by JSON-mode synthesis. Synthesis may retry from preserved research text without rerunning web research. Mission generation unchanged.

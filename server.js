@@ -322,7 +322,7 @@ app.post("/api/research/poll",async(req,res)=>{
   if(phase==="research"){
    const interpretationPrompt=`You are the AeroMission dispatch DATA INTERPRETER. Analyze the following research and map it into the exact application fields. Research is unstructured; extract relevant facts and calculate coherent SIMULATION estimates where supportable. Return a single JSON object, with no prose outside it. This is an OUTPUT contract only, not a restriction on research. Section: ${section}; key: ${key}. Fields: ${JSON.stringify(CONTRACTS[section])}. Existing target: ${JSON.stringify(section==="airport"?(mission?.airport_briefings||[]).find(x=>x.icao===key):(mission?.legs||[]).find(x=>String(x.seq)===String(key))).slice(0,4500)}. Original research: ${result.raw.slice(0,21000)}. Cite sources from the research, distinguish sourced data from simulation estimates, and use clear explanation when unverified. Do not invent approved aircraft performance or fuel quotes.`;
    const job=await researchSection(client(req),"gpt-6-luna",interpretationPrompt,{web:false});
-   return res.json({status:job.status,job_id:job.job_id,phase:"interpretation"});
+   return res.json({status:job.status,job_id:job.job_id,phase:"interpretation",research_text:result.raw});
   }
   const data=result.data;
   const missing=validateSection(section,data,String(key||"").toUpperCase());
@@ -330,6 +330,16 @@ app.post("/api/research/poll",async(req,res)=>{
   m.research_audit=m.research_audit||{};m.research_audit[`${section}:${key}`]={missing,completed_at:new Date().toISOString(),sources:data.sources||[],method:"AI_RESEARCH_THEN_AI_INTERPRETATION"};
   debugEvent("COMPLETE","AI interpreted research completed",{section,key,missing:missing.length});res.json({status:"completed",mission:m});
  }catch(e){debugEvent("WARN","AI research/interpretation failed",{section,key,error:e.message});res.status(503).json({error:e.message})}
+});
+
+// PATCH 46: Synthesis repair from original research without another web search.
+app.post("/api/research/synthesize",async(req,res)=>{
+ const {section,key,raw,mission}=req.body||{};
+ if(!["airport","leg"].includes(section)||typeof raw!=="string"||!raw.trim())return res.status(400).json({error:"Missing research text"});
+ const target=section==="airport"?(mission?.airport_briefings||[]).find(x=>x.icao===key):(mission?.legs||[]).find(x=>String(x.seq)===String(key));
+ const prompt=`Convert these researched aviation findings to ONE valid JSON object. No Markdown. Section ${section}, key ${key}. Required output shape: ${JSON.stringify(CONTRACTS[section])}. Existing: ${JSON.stringify(target||{}).slice(0,4000)}. Research: ${raw.slice(0,22000)}. Retain sourced facts, clearly identify simulated estimates and missing verified data; never fabricate certified aircraft performance or published fuel prices.`;
+ try{const job=await researchSection(client(req),"gpt-6-luna",prompt,{web:false});res.json({...job,phase:"interpretation"});}
+ catch(e){res.status(503).json({error:e.message})}
 });
 
 app.post("/api/fbo/enrich",(req,res)=>{
