@@ -52,3 +52,10 @@ Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple 
 - Mission primary timeout reduced to 45 s and compact fallback to 12 s.
 - If both AI expansion attempts time out, the server returns a deterministic mission shell from the authoritative concept/job + verified aircraft instead of returning HTTP 502.
 - Weather and ground-support enrichment continue after mission creation; dispatch paperwork requirements remain mission-driven.
+
+## PATCH 39 — aerodrome reference + transparent simulation fuel planning
+- Airport reference stage precedes weather and FBO research. It retrieves and caches the public-domain OurAirports airports, runways and frequencies CSVs for 24 hours. Runways, elevation, coordinates and frequencies are inserted into dispatch and PDF when available.
+- Existing mission generation and verified-registration workflow unchanged.
+- When AI does not supply fuel planning, leg PDF shows **clearly labeled simulation-only** approximate gallons based on generic aircraft category assumptions; never an operational release.
+- Approved V-speeds, runway performance, actual empty-weight/CG, certified W&B and published fuel pricing cannot safely be synthesized. These remain explicitly flagged for aircraft-specific verification, not invented.
+- Server requires outbound access to davidmegginson.github.io. Source: https://ourairports.com/data/. OurAirports data is not certified for navigation.

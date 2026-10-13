@@ -1,3 +1,4 @@
+import { airportFacts } from "./airport-data.js";
 import express from "express";
 import OpenAI from "openai";
 import path from "path";
@@ -31,7 +32,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 37 generation engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
+debugEvent("INFO","PATCH 39 generation engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
 
 
 async function awcText(product,icao){
@@ -43,6 +44,7 @@ async function enrichWeather(m){
  const legs=m?.legs||[];for(const l of legs){const dep=l.origin,dst=l.destination,alt=l.alternate_icao||"";const [dm,dt,am,at,dj,aj]=await Promise.all([awcText("metar",dep),awcText("taf",dep),awcText("metar",dst),awcText("taf",dst),awcMetarJson(dep),awcMetarJson(dst)]);l.weather={departure_metar:dm,departure_taf:dt,destination_metar:am,destination_taf:at};l.average_wind_temp=avgWindTemp(dj,aj);if(alt){l.weather.alternate_metar=await awcText("metar",alt);l.weather.alternate_taf=await awcText("taf",alt)}l.weather_context=`DEP METAR ${dm} | DEP TAF ${dt} | DEST METAR ${am} | DEST TAF ${at}`}
  m.weather_source="NOAA/NWS Aviation Weather Center Data API";m.weather_retrieved_at=new Date().toISOString();return m
 }
+app.post("/api/airport/reference",async(req,res)=>{try{const m=req.body?.mission||{};const codes=[...new Set([...(m.legs||[]).flatMap(l=>[l.origin,l.destination,l.alternate_icao]),...(m.airport_briefings||[]).map(a=>a.icao)].filter(Boolean).map(x=>String(x).toUpperCase()))];const facts=await airportFacts(codes);const briefs=Array.isArray(m.airport_briefings)?m.airport_briefings:[];for(const f of facts){let b=briefs.find(x=>String(x.icao).toUpperCase()===f.icao);if(!b){b={icao:f.icao,fbos:[]};briefs.push(b)}if(f.found){b.field_summary=[f.name,f.municipality,f.country].filter(Boolean).join(' / ');b.field_elevation=f.elevation_ft?`${f.elevation_ft} FT MSL`:'ELEVATION NOT IN DATASET';b.runways=f.runways.join(' | ')||'NO OPEN RUNWAY RECORD IN DATASET';b.frequencies=f.frequencies;b.coordinates=`${f.latitude}, ${f.longitude}`;b.aerodrome_source=f.source;b.aerodrome_retrieved_at=f.retrieved_at}else{b.field_summary=b.field_summary||'AIRPORT NOT FOUND IN REFERENCE DATA';b.field_elevation=b.field_elevation||'REQUIRES AIP VERIFICATION';b.runways=b.runways||'REQUIRES AIP VERIFICATION'}b.limitations=b.limitations||'CHECK CURRENT AIP / NOTAM / PROCEDURES';b.customs=b.customs||'CHECK OFFICIAL BORDER / CUSTOMS REQUIREMENTS';b.handling=b.handling||'GROUND HANDLER NOT YET VERIFIED'}m.airport_briefings=briefs;res.json(m)}catch(e){debugEvent('WARN','Airport reference unavailable',{error:e.message});res.status(503).json({error:e.message})}});
 app.post("/api/weather/enrich",async(req,res)=>{try{res.json(await enrichWeather(req.body?.mission||{}))}catch(e){res.status(500).json({error:e.message})}});
 
 function extractJSONObject(text){
