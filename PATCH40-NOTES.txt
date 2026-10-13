@@ -1,0 +1,9 @@
+PATCH 40 — AI-driven operational research
+- Existing mission generation untouched.
+- New /api/research/section searches the web with AI for each airport and each leg, independently.
+- Research data saved into airport briefings, fuel release, TOLD and weight/balance fields.
+- No invented fuel prices; unpublished prices explicitly require quotes.
+- Removed generic aircraft-category fuel fallback from dispatch PDF.
+- Certified AFM performance and CG are not fabricated if matching input data is unavailable.
+- Research is bounded and nonblocking, and incomplete sections may be retried.
+- IMPORTANT: AI web research depends on OPENAI_API_KEY, network and published data; cannot guarantee completeness.

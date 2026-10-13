@@ -1,4 +1,5 @@
 import { airportFacts } from "./airport-data.js";
+import { researchSection,mergeResearch } from "./ai-research.js";
 import express from "express";
 import OpenAI from "openai";
 import path from "path";
@@ -32,7 +33,7 @@ function debugEvent(kind,message,meta={}){
   console.log(`[AeroMission ${kind}] ${message}`,meta);
 }
 app.get("/api/debug",(req,res)=>res.json({events:debugLog.slice(0,100)}));
-debugEvent("INFO","PATCH 39 generation engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
+debugEvent("INFO","PATCH 40 AI research engine loaded",{mode:"MISSION_FIRST_FAST_EXPANSION_FAIL_OPEN",primary_timeout_ms:45000,mission_fallback_ms:12000,correction_timeout_ms:0});
 
 
 async function awcText(product,icao){
@@ -297,6 +298,19 @@ function finalizeOps(data){
 }
 
 
+// PATCH 40: AI research in bounded airport/leg requests, independent of mission creation.
+app.post("/api/research/section",async(req,res)=>{
+ const m=req.body?.mission||{},section=req.body?.section,key=String(req.body?.key||"").toUpperCase();
+ if(!["airport","leg"].includes(section))return res.status(400).json({error:"Invalid research section"});
+ const airport=section==="airport"?(m.airport_briefings||[]).find(x=>String(x.icao).toUpperCase()===key):null;
+ const leg=section==="leg"?(m.legs||[]).find(x=>String(x.seq)===key):null;
+ if(section==="airport"&&!airport||section==="leg"&&!leg)return res.status(400).json({error:"Research target missing"});
+ const prompt=section==="airport"?`Research airport ${key} for an aviation simulation dispatch briefing. Search official aeronautical publications and airport/operator websites, fuel supplier/FBO sites and current price listings. Return JSON fields: icao, field_summary, field_elevation, runways, frequencies, limitations, customs, handling, fbos (array of {name,provider_type,presence,services,contact,fuels:[{type,availability,price,price_unit,price_updated,price_status}],source}), sources (URLs), research_status. Fuel prices must be sourced and dated; if unavailable use price_status 'NOT PUBLICLY POSTED' and price 'PRICE QUOTE REQUIRED', never guess. List all verifiable operators rather than just the first. Keep runway information factual and dated. Airport context: ${JSON.stringify(airport).slice(0,3000)}`:
+ `Research aircraft-specific flight-planning data for SIMULATION leg ${leg.seq} ${leg.origin}-${leg.destination} ${leg.distance_nm} NM on ${m.registration} ${m.aircraft_type}. Weather ${JSON.stringify(leg.weather||{}) .slice(0,1800)}; manifest ${JSON.stringify({crew:leg.crew,passengers:leg.passengers,cargo_lb:leg.cargo_lb,baggage_lb:leg.baggage_lb,equipment_lb:leg.equipment_lb}).slice(0,1700)}. Research type-specific fuel consumption, capacity, empty/max weights, published performance references and route context. Calculate internally consistent fuel quantities and gross weights, showing assumptions, units and sources. Return JSON {fuel_release:{release_fuel,taxi_fuel,trip_fuel,contingency_fuel,alternate_fuel,reserve_fuel,extra_fuel,planned_landing_fuel,fuel_basis},told:{runway,runway_condition,wind,oat,qnh_altimeter,takeoff_weight,landing_weight,v1,vr,v2,takeoff_distance,landing_distance,status},weight_balance:{zfw,tow,ldw,cg,cg_limits,status},planning_status,sources:[URLs]}. For performance V-speeds, distance and CG, ONLY return numeric figures if supported by matching AFM/POH data AND actual inputs; otherwise use explicit 'AFM/CONFIGURATION VERIFICATION REQUIRED' values. Never represent illustrative estimates as certified or approved. Never invent runway conditions.`;
+ try{const data=await researchSection(client(req),"gpt-6-luna",prompt,32000);mergeResearch(m,data,section,key);debugEvent("COMPLETE","AI section research completed",{section,key});res.json(m)}
+ catch(e){debugEvent("WARN","AI section research unavailable",{section,key,error:e.message});res.json({...m,research_warnings:[...(m.research_warnings||[]),`${section} ${key}: ${e.message}`]})}
+});
+
 app.post("/api/fbo/enrich",(req,res)=>{
  const mission=req.body?.mission||{};
  const airports=[...new Set([...(mission.legs||[]).flatMap(l=>[l.origin,l.destination,l.alternate_icao].filter(Boolean)),...(mission.airport_briefings||[]).map(a=>a.icao).filter(Boolean)])];
@@ -320,7 +334,7 @@ Return STRICT JSON {"airports":[{"icao":"","fbos":[{"name":"","provider_type":"F
 Only include facts supported by the public sources you found.`,{web:true,transform:data=>{
    const by=new Map((data.airports||[]).map(a=>[normalizeIcao(a.icao),a]));
    mission.airport_briefings=Array.isArray(mission.airport_briefings)?mission.airport_briefings:[];
-   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||b.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(String(fuel.availability||"").toUpperCase()==="AVAILABLE"&&!String(fuel.price||"").trim()){const t=String(fuel.type||"").toUpperCase();const lo=t.includes("JET")?5.25:t.includes("MOGAS")?4.75:5.50,hi=t.includes("JET")?9.75:t.includes("MOGAS")?7.25:9.25;const n=lo+Math.random()*(hi-lo);fuel.price=`$${n.toFixed(2)}`;fuel.price_unit="USD/GAL";fuel.price_updated="DISPATCH"}}}b.fbo_notes=live?.notes||b.fbo_notes||"GROUND-SUPPORT RESEARCH UNAVAILABLE — RETRY LATER";b.fbo_sources=live?.sources||[]}
+   for(const icao of airports){let b=mission.airport_briefings.find(x=>normalizeIcao(x.icao)===icao);if(!b){b={icao,field_summary:"",runways:"",field_elevation:"",weather:"",limitations:"",customs:"",handling:"",fbos:[],notes:"",sources:[]};mission.airport_briefings.push(b)}const live=by.get(icao);b.fbos=live?.fbos||b.fbos||[];for(const fbo of b.fbos){for(const fuel of (fbo.fuels||[])){if(!String(fuel.price||'').trim()){fuel.price='PRICE QUOTE REQUIRED';fuel.price_updated='NOT PUBLISHED';fuel.price_status='NOT PUBLICLY POSTED'}}}b.fbo_notes=live?.notes||b.fbo_notes||"GROUND-SUPPORT RESEARCH UNAVAILABLE — RETRY LATER";b.fbo_sources=live?.sources||[]}
    return mission;
  }});
 });
