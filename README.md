@@ -69,3 +69,7 @@ Go to **Settings → OpenAI API key — this device**. Paste a key, choose **Sav
 ## 3.3 task recovery
 
 Render free-service restarts can remove in-memory AI tasks. The browser now detects an expired task on the first 404, clears the blocking task ID, and displays a Retry previous AI request button for tasks started after this update. Tasks started before upgrading can be dismissed, and a new mission created. Temporary connection losses expose Resume polling or Clear stuck task. This does not make an in-progress server AI job durable across a Render restart; restart-safe persistence would require a separate durable task store.
+
+
+## 3.4 changes / PDF quality gates
+Mission concept generation uses a bounded natural-language first pass to mitigate token-limit truncation; structured output permits a larger token budget and separate flight planning. Airport reference facts are published to the in-progress mission before AI research. The PDF has an explicit integrity review for aircraft conflicts, route continuity, dates, fuel/weight arithmetic and incomplete airport research; airport elevation no longer prints undefined. Footer placement no longer relies on a text cursor below the PDFKit page bottom margin (which caused 20 footer-only extra pages). A draft download requires confirmation while research is still running. Unverified aviation numbers remain simulation-only.
