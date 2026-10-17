@@ -1,1 +1,0 @@
-PATCH 46: Restore PATCH 10 separation: web-enabled narrative research, then web-disabled JSON-mode synthesis. Preserve research text and retry malformed synthesis twice. Mission generation untouched.

@@ -1,1 +1,0 @@
-PATCH 43: Two-stage AI research -> AI interpretation. Unstructured web research is interpreted into Dispatch fields by a second background model job. Mission generator untouched.\n

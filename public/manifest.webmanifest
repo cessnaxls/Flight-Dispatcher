@@ -1,9 +1,1 @@
-{
-  "name": "AeroMission Ops",
-  "short_name": "AeroMission",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#e8eef5",
-  "theme_color": "#176db2",
-  "icons": []
-}
+{"name":"AeroMission Ops 2.0","short_name":"AeroMission","start_url":"/","display":"standalone","background_color":"#101c30","theme_color":"#101c30"}

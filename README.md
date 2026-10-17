@@ -1,63 +1,34 @@
-# AeroMission Ops — iPad / Git / Render
+# AeroMission Ops 2.0 — Ground-Up Rebuild
 
-This is the web/PWA edition of AeroMission Ops. It is designed for iPad Safari and deployment from GitHub to Render.
+A new Node/Express + browser-native operations simulator designed for iPad and desktop. **This is a replacement application, not an incremental PATCH47 patch.**
 
-## Deploy
-1. Create a GitHub repo and upload the contents of this folder.
-2. In Render, create a Blueprint from the repo (`render.yaml` is included), or create a Node Web Service.
-3. Add `OPENAI_API_KEY` in Render > Environment. Do **not** commit the key.
-4. Deploy.
-5. Open the Render URL in Safari on iPad. Use Share > Add to Home Screen for an app-like PWA.
+## Start
 
-## Data
-Mission/fleet/logbook/settings data is stored in the iPad browser's localStorage. This avoids requiring a database for a personal single-iPad deployment. Clearing Safari website data will clear it.
+1. Install Node 20+ and run `npm install`.
+2. Run `npm start` and open `http://localhost:3000`.
+3. Optional: configure `OPENAI_API_KEY` in the Render environment (not in the browser). Optionally set `OPENAI_MODEL` to a Responses API model that supports web search and structured JSON; default `gpt-4.1`.
+4. Deploy via the included `render.yaml` or an existing Render web service (build `npm install`, start `npm start`).
 
-## MSFS
-A cloud-hosted iPad web app cannot directly use Windows SimConnect. Live Flight is intentionally prepared for a later Windows companion bridge. Planning, AI mission generation, job board, dispatch, paperwork UI, fleet and PDFs work without SimConnect.
+## Modules
 
-## Paperwork
-The UI accepts PDF files only. This first web build submits only PDF metadata to the silent AI audit endpoint; it does not upload PDF bytes. The verdict is intentionally hidden from the UI.
+- Overview: mission/assignment/fleet summaries.
+- Mission Builder: deterministic single and multi-leg mission creation, local persistence, no AI dependency.
+- Job Board: six local simulation assignments and conversion into missions.
+- Dispatch: itinerary, aircraft, airport briefings, METAR lookup, manifests, cargo, maintenance and document records, print-to-PDF.
+- Airport research: first-stage AI web research followed by strict structured AI interpretation. Shows explicit partial/failure states. Does not invent FBOs or current fuel prices.
+- Fleet/MX: editable local aircraft roster and maintenance notes.
+- Live Flight: manual simulation status transitions.
+- Logbook: completed simulated missions.
+- Settings: JSON import/export, health and configuration.
 
-## Operational disclaimer
-Training/simulation only. AI-generated MEL, legal, performance, fuel-price estimates and maintenance records are not real-world operational authority.
+## Data and safety
 
+Data is stored in the browser's `localStorage`, **not** on Render or shared between devices. Back up before clearing browser data. There is no authentication, central synchronization, actual telemetry, validated aircraft performance, dispatch release authority or certified navigation data. All flights, job opportunities, timing estimates and flight status are simulations. Public aviation data and supplier pricing require independent verification. Browser Print → Save as PDF is used for dispatch documents.
 
-## PATCH 24 — mission-first staged generation
-- Restores mission-first creative architecture: concept -> aircraft type -> verified public registration -> detailed operational expansion -> weather/FBO enrichment.
-- AI DECIDES no longer resolves a random aircraft before inventing the assignment.
-- Job Board selections themselves serve as the creative concept before aircraft resolution.
-- Removed the diversity-seed workaround from Mission Builder flow. Recent missions remain exclusion context only for the concept pass.
-- Aircraft identity status is VERIFIED PUBLIC MATCH or UNRESOLVED; no PLAUSIBLE status.
-- Removed whole-mission rejection based only on immersion-breaking keyword scanning; structural validation remains.
+## Testing
 
+`npm test` runs core route, mission, job and briefing merge tests. The rebuild has not been live-tested with an OpenAI account or Render deployment. API availability and AI model capabilities depend on your configuration.
 
-PATCH 27: Cross-platform PDF printing. Trip Sheet and Dispatch print from the in-app rendered pages using the browser print dialog/AirPrint rather than navigating to blob: PDF URLs. Added SAVE / SHARE for native iPad share sheet or desktop PDF download.
+## Migration
 
-
-## PATCH 29
-Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple specific open MEL/CDL/INOP discrepancies; OK and GOOD can still be clean but have meaningful probabilities of a specific deferred item; RANDOM spans poor through pristine states. When the roll requires an item, mission validation enforces that it was actually populated, including FOUND DURING PREFLIGHT when selected. Discrepancies remain generated mission state and are not claims about the real registration.
-
-
-## PATCH 34 — mission generation reliability
-- Treats mission concept/job and resolved aircraft identity as authoritative server-side data. The expansion pass can no longer erase title, operation, aircraft type, or verified registration.
-- Restores Job Board itinerary legs if an expansion response omits them.
-- A primary mission timeout with no response no longer tries to repair `{}`; it performs one compact fallback generation using the original request.
-- Mission primary timeout is capped at 60 s, compact fallback at 22 s, and validation correction at 12 s.
-- Existing section-tolerant preservation remains in place.
-- MX directive now also caps excess MEL/CDL/INOP items at the requested maximum.
-
-
-## PATCH 36
-- Mission expansion is now a lean fast stage; full dispatch calculations/doc contents are not requested in the blocking expansion call.
-- Mission primary timeout reduced to 45 s and compact fallback to 12 s.
-- If both AI expansion attempts time out, the server returns a deterministic mission shell from the authoritative concept/job + verified aircraft instead of returning HTTP 502.
-- Weather and ground-support enrichment continue after mission creation; dispatch paperwork requirements remain mission-driven.
-
-## PATCH 39 — aerodrome reference + transparent simulation fuel planning
-- Airport reference stage precedes weather and FBO research. It retrieves and caches the public-domain OurAirports airports, runways and frequencies CSVs for 24 hours. Runways, elevation, coordinates and frequencies are inserted into dispatch and PDF when available.
-- Existing mission generation and verified-registration workflow unchanged.
-- When AI does not supply fuel planning, leg PDF shows **clearly labeled simulation-only** approximate gallons based on generic aircraft category assumptions; never an operational release.
-- Approved V-speeds, runway performance, actual empty-weight/CG, certified W&B and published fuel pricing cannot safely be synthesized. These remain explicitly flagged for aircraft-specific verification, not invented.
-- Server requires outbound access to davidmegginson.github.io. Source: https://ourairports.com/data/. OurAirports data is not certified for navigation.
-
-PATCH 46 — PATCH 10-style web research followed by JSON-mode synthesis. Synthesis may retry from preserved research text without rerunning web research. Mission generation unchanged.
+This is a clean new data model; **PATCH47 browser storage is not automatically migrated**. Export or retain old app data separately before deploying over an existing service. Deploying this over the old app replaces its interface and server routes. Prefer a new Render service for a reversible trial.

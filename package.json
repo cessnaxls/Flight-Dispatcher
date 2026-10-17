@@ -1,16 +1,1 @@
-{
-  "name": "aeromission-ops-ipad",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=20 <25"
-  },
-  "dependencies": {
-    "express": "^5.1.0",
-    "openai": "^6.0.0"
-  }
-}
+{"name":"aeromission-ops-rebuilt","version":"2.0.0","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test"},"engines":{"node":">=20"},"dependencies":{"express":"^5.1.0","openai":"^6.0.0"}}
