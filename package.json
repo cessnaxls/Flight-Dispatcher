@@ -1,5 +1,5 @@
 {
-  "name": "aeromission-ops-3",
+  "name": "aeromission-ops-ai-rebuild",
   "version": "3.0.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check": "node --check server.js && node --check ai.js && node --check json.js && node --check pipeline.js && node --check domain.js && node --check vatsim.js && node --check pdf.js && node --check public/app.js"
   },
   "dependencies": {
     "express": "^5.1.0",
