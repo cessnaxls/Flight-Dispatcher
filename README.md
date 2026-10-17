@@ -59,7 +59,6 @@ Headless browser tests can be run with a local Playwright Python/Chromium instal
 - The app does not record a flight when closed and does not fetch VATSIM historical flight logs from an authenticated account.
 - Certified performance figures and approved MEL/CDL releases cannot be generated safely from generalized AI research; numeric planning data is marked as simulation data and may remain unavailable.
 
-
 ## Browser-session API key (new in v3.1)
 
 Go to **Settings → OpenAI API key — this browser session**. Paste a key, choose **Save key for this session**, and select **Test OpenAI connection**. All AI task requests (missions, jobs, airport research and fleet) use this key when present; otherwise they use the Render `OPENAI_API_KEY`. A server restart does not destroy a key that remains in the active tab session, but closing the browser session or clearing the key does. Each device needs its own entry. Keys are not included in app backups, localStorage, mission objects, or application logs.
