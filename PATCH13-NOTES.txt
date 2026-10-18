@@ -1,0 +1,5 @@
+AeroMission Ops PATCH 13
+- Mission Builder no longer keeps/display stale setup-required AM-UNASSIGNED missions.
+- Build Mission From This Job now loads the selected job into Mission Builder controls for review/editing instead of immediately generating in the background.
+- Generate Mission uses the loaded job context plus any edits, then clears builder fields after a successful generation.
+- Backend rejects incomplete/setup-required mission responses so they cannot be saved as missions.

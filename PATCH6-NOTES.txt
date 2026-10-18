@@ -1,0 +1,10 @@
+AeroMission Ops iPad PATCH 6
+- Fuel availability/pricing is now grade-specific: AVGAS/100LL and Jet A/Jet A-1 have separate availability, prices, units, and status.
+- Unavailable fuel shows no price.
+- Removed prominent simulation/training language from mission-facing UI and kneeboard/ops document bodies; PDFs retain only AeroMission Ops footer branding.
+- Mission Builder: Aircraft MX Status = RANDOM/BAD/OK/GOOD; Age of aircraft influences MX state checkbox defaults ON.
+- Job Board: same MX controls, saved with Job Board defaults.
+- MX generation now uses selected band, aircraft age as a probabilistic influence, and concrete location/exposure factors (salt, humidity, dust, temperature cycling, storage, utilization, remote support/parts logistics).
+- Age/location influence is non-deterministic: old aircraft can be excellent; new aircraft can be poor.
+- Dispatch MX card includes generated condition summary and location factors.
+- Job cards include MX indicator.

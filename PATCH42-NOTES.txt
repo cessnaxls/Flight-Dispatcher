@@ -1,0 +1,16 @@
+PATCH 42 / CHATGPT WEB RESEARCH
+
+- Preserves mission conception, real-tail verification, and working mission generation.
+- Airport and leg sections are researched via OpenAI Responses API web_search with background jobs.
+- Airport prompt explicitly requires multiple searches for FBOs, handlers, fuel suppliers, prices and operational details; sources and dates included.
+- AI planning requests numerical simulator estimates and coherent arithmetic, with assumptions and non-approved labels.
+- Maps weight_balance into the wb_clearance fields actually rendered in the PDF.
+- Normalizes airport fields, frequencies, provider lists and runway formats for Dispatch and PDF.
+- Up to three AI research jobs run concurrently, each updating its own airport/leg while keeping the rest of the saved mission.
+- Displays per-section research status and prevents duplicate concurrent research on the same mission.
+- Shows indicative fuel-price status in briefing PDF.
+
+NEEDS OPENAI_API_KEY in Render. Background API processing still has provider-side time limits and can fail. Research is not guaranteed to finish or yield a current price.
+NOTE: This patch uses OpenAI API models, not the user's ChatGPT web session, and API usage incurs OpenAI API costs independently of Render hosting.
+
+Testing: node --check for server.js, ai-research.js, public/app.js; local merge smoke test. Live API research and Render deployment NOT tested.

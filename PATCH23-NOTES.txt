@@ -1,0 +1,8 @@
+AeroMission Ops PATCH 23
+- Keeps operation/aircraft dropdown filters; they constrain AI only when selected.
+- Adds optional AI Diversity Seed in Settings with RANDOMIZE and BLANK controls.
+- Blank seed gets a fresh server-side UUID entropy cue on every generation.
+- Recent mission/job fingerprints are supplied only as negative context to prevent near-duplicate assignments; they are not templates or canned scenarios.
+- Fixes Job Board -> Dispatch identity continuity by server-injecting the already verified registration/type before mission validation instead of depending on the model to echo them.
+- Mission primary timeout raised to 70s; Job Board remains 50s.
+- Startup debug marker updated to PATCH 23.

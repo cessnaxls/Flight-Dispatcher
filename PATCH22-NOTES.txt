@@ -1,0 +1,12 @@
+AeroMission Ops PATCH 22
+
+- Job Board timeout fix: corrected the contradictory prompt that still demanded 8 jobs while validation demanded 6; Job Board now generates exactly 6 compact discovery cards and no longer wastes tokens on FBO/fuel/manifest/dispatch detail. Output budget raised to 6,000 to avoid max_output_tokens truncation.
+- Removed all generated/plausible FBO and fuel-price behavior. Mission generation leaves FBO data empty until a separate public-web research enrichment step completes.
+- FBO enrichment researches every airport used by the mission (departure, destination, intermediate, and alternate), requests every publicly verifiable FBO/provider, separate fuel grades/service types, posted price, update date, and source. If none can be verified, the UI explicitly reports no verified FBO/provider rather than inventing one.
+- Removed the PLASUSIBLE/PUBLISHED status column from FBO display. FBO table now shows provider, services, fuel grade, service, price, and update date.
+- Airport brief labels are vertically aligned using a two-column CSS grid; FBO table cells are top-aligned.
+- Removed duplicate weather-enrichment call that was fetching the same AWC data twice per mission.
+- MX is now structured operational state, not only prose: open items can be OPEN or FOUND DURING PREFLIGHT and carry MEL/CDL/INOP/MX category, disposition (including GROUNDING ITEM), reference, and limitations.
+- Dispatch and Trip Sheet PDFs render the richer maintenance item structure.
+- Dispatch PDF readability improved by starting each additional leg on a fresh page, retaining tabulated weather/fuel/TOLD/W&B blocks and allowing long multi-leg releases to expand naturally.
+- Startup debug marker: PATCH 22 generation engine loaded.

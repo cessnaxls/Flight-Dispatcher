@@ -1,0 +1,5 @@
+AeroMission Ops PATCH 18
+- Job Board MX selection is now a hard continuity constraint when dispatching a selected job: BAD stays poor/below-average, OK stays average, GOOD stays above-average/excellent.
+- Added server-side enforcement so a generated mission cannot silently drift away from the selected job's MX band.
+- Kneeboard PDF redesigned into a tighter dispatch-document layout: smaller header, compact section rules, reduced vertical whitespace, denser manifests, and explicit MX CONDITION section.
+- Existing real-aircraft identity workflow remains intact.
