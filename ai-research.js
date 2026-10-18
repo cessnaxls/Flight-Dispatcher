@@ -30,13 +30,47 @@ function normalAirport(data,key){
  d.sources=Array.isArray(d.sources)?d.sources:[];d.research_status=d.research_status||'AI WEB RESEARCH COMPLETED — REVIEW SOURCES';
  return d;
 }
+function normalizeProviders(data){
+ const payload=data||{};
+ const groups=[payload.providers,payload.fbos,payload.handlers,payload.fuel_suppliers,payload.ground_handlers,payload.fuel_providers];
+ const list=groups.flatMap(v=>Array.isArray(v)?v:[]);
+ const cleaned=[];const seen=new Set();
+ for(const raw of list){
+  if(!raw||typeof raw!=='object')continue;
+  const name=asText(raw.name||raw.company||raw.provider||'').trim();
+  const source=raw.source||raw.source_url||raw.website||'';
+  const sources=[source,...(Array.isArray(raw.sources)?raw.sources:[])].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
+  if(!name||!sources.length)continue;
+  const uniq=name.toUpperCase().replace(/[^A-Z0-9]/g,'');if(seen.has(uniq))continue;seen.add(uniq);
+  const fuelItems=raw.fuels||raw.fuel_products||raw.fuel||[];
+  const fuels=(Array.isArray(fuelItems)?fuelItems:typeof fuelItems==='object'&&fuelItems?[fuelItems]:[]).map(z=>typeof z==='string'?{type:z,availability:'REPORTED',price_status:'QUOTE REQUIRED'}:{...z,type:z.type||z.grade||z.fuel_type||'',price:z.price||'',price_unit:z.price_unit||z.unit||'',price_updated:z.price_updated||z.date||'',price_status:z.price_status||(z.price?'REPORTED — VERIFY DATE':'NOT PUBLISHED')});
+  cleaned.push({name,provider_type:asText(raw.provider_type||raw.category||raw.type||'GROUND SUPPORT'),presence:asText(raw.presence||raw.location_status||'AIRPORT SERVICE — CONFIRM DIRECTLY'),services:asText(raw.services||raw.description||''),contact:asText(raw.contact||raw.phone||raw.email||''),hours:asText(raw.hours||''),fuels,source:sources[0],sources});
+ }
+ return cleaned;
+}
 export function mergeResearch(mission,data,section,key){
  if(section==='airport'){
   mission.airport_briefings ||= [];let b=mission.airport_briefings.find(x=>String(x.icao).toUpperCase()===key);
   if(!b){b={icao:key};mission.airport_briefings.push(b)}
   const d=normalAirport(data||{},key);
-  if(d.identity_status!=='VERIFIED')b.fbos=[];
-  for(const [k,v] of Object.entries(d))if(k!=='icao'&&hasValue(v))b[k]=v;
+  // Provider discoveries are independent; preserve source-backed results from prior research.
+  if(d.identity_status!=='VERIFIED' && !Array.isArray(b.fbos))b.fbos=[];
+  for(const [k,v] of Object.entries(d))if(k!=='icao'&&k!=='fbos'&&hasValue(v))b[k]=v;
+  if(d.fbos.length)b.fbos=normalizeProviders({providers:[...d.fbos,...(b.fbos||[])]});
+ }else if(section==='providers'){
+  mission.airport_briefings ||= [];let b=mission.airport_briefings.find(x=>String(x.icao||'').toUpperCase()===key);
+  if(!b){b={icao:key};mission.airport_briefings.push(b)}
+  const matches=String(data?.icao||'').toUpperCase()===key;
+  const providers=matches?normalizeProviders(data):[];
+  if(providers.length){
+   const old=Array.isArray(b.fbos)?b.fbos:[];
+   b.fbos=normalizeProviders({providers:[...providers,...old]});
+   b.handling=providers.map(x=>x.name+' — '+x.provider_type).join(' | ');
+   b.fbo_notes='CHATGPT WEB PROVIDER RESEARCH: '+providers.length+' SOURCE-BACKED PROVIDER(S)';
+   b.fbo_sources=[...new Set(providers.flatMap(x=>x.sources))];
+  }else b.fbo_notes=matches?'PROVIDER RESEARCH COMPLETED; NO SOURCE-BACKED PROVIDERS RETURNED':'PROVIDER RESEARCH RETURNED WRONG ICAO; RETRY';
+  if(data?.fuel_price_estimate && matches)b.fuel_price_estimate=data.fuel_price_estimate;
+  b.provider_research_status=providers.length?'COMPLETED':'REVIEW REQUIRED';
  }else if(section==='leg'){
   const leg=(mission.legs||[]).find(x=>Number(x.seq)===Number(key));if(!leg)return mission;
   if(data?.fuel_release)leg.fuel_release={...(leg.fuel_release||{}),...data.fuel_release};

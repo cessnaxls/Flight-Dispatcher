@@ -1,0 +1,1 @@
+PATCH 45 — ChatGPT FBO/handlers/fuel research independently from airport identity. Separate provider research requests, source-backed provider normalization, mapping and non-destructive updates. Existing mission generation unchanged. Market estimates explicitly labeled, not real prices.

@@ -1,0 +1,20 @@
+PATCH 44 — ChatGPT Airport Research Target Repair
+
+Mission generation is unchanged.
+
+The backend now accepts real mission itinerary ICAO codes as airport research targets
+without requiring a pre-existing airport_briefings[] entry. This fixes the
+"Research target missing" failure for airports such as EHAM, LFPG, LFPO,
+LIRF, LIRA and EHRD. The existing web-enabled OpenAI Responses API research
+prompt is sent for each airport and the resulting JSON is merged into the
+mission's airport briefings. The PDF reads these saved briefings.
+
+Also forces at least one poll for research jobs which complete immediately,
+so results are not lost before merge.
+
+Each airport needs successful research and exact-ICAO sourced verification
+before the PDF release gate opens. API research is not the ChatGPT web UI;
+it requires an OPENAI_API_KEY with API billing enabled. Externally unavailable
+facts or live fuel quotes cannot be guaranteed and must not be invented.
+
+No live OpenAI requests have been performed in this local build.
