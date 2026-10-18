@@ -1,0 +1,9 @@
+PATCH 47 — Briefing completeness gate and dispatch PDF layout
+
+- 100% only after audited research fields are complete, including station identity, handling/FBO, fuel price or sourced estimate, leg fuel, load and performance, plus weather and airport reference.
+- Incomplete AI payloads remain RETRY REQUIRED rather than COMPLETED; no silent fabricated data.
+- Dispatch PDF uses nested-value formatting instead of [object Object].
+- Improved table text sizing, spacing, mission overview and combined short controlled forms to reduce nearly empty sheets.
+- Mission generation logic untouched. Research continues through OpenAI Responses with web search and separate airport, provider and leg work.
+
+Note: Some published costs, qualified performance and maintenance documents cannot be verified; the completeness gate intentionally remains incomplete until research supplies the required evidence. This is a simulation tool, not an approved operational release.
