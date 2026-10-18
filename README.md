@@ -59,3 +59,12 @@ Mission MX now uses a per-mission maintenance-event roll. BAD requires multiple 
 - When AI does not supply fuel planning, leg PDF shows **clearly labeled simulation-only** approximate gallons based on generic aircraft category assumptions; never an operational release.
 - Approved V-speeds, runway performance, actual empty-weight/CG, certified W&B and published fuel pricing cannot safely be synthesized. These remain explicitly flagged for aircraft-specific verification, not invented.
 - Server requires outbound access to davidmegginson.github.io. Source: https://ourairports.com/data/. OurAirports data is not certified for navigation.
+
+## PATCH 43 — Airport identity enforcement
+- Maintains the existing mission-conception, aircraft-registration, and expansion code.
+- All stations in the itinerary (including alternates) launch OpenAI web-grounded airport research.
+- The model must specifically confirm the exact four-letter ICAO airport identity and provide source URLs. Unassigned, closed, and unresolvable ICAOs are INVALID/RESEARCH_REQUIRED.
+- PDF output is held until every station's airport research reports VERIFIED; it never presents a fabricated station as a released PDF. Research status and reasons appear in Dispatch.
+- OpenAI web results are normalized into the airport briefing and retained in saved missions; the local airport reference may supplement but not overwrite verified AI fields.
+- Research runs in asynchronous background jobs; provider sites and the API can still fail or omit details. Current prices and approved aircraft performance cannot be guaranteed; those must not be invented.
+- NOTE: research results are AI claims with supporting URLs, not an automated official-AIP authenticity proof. Human verification is required for actual flight operations.

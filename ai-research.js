@@ -16,9 +16,16 @@ const hasValue=v=>v!==null&&v!==undefined&&v!==''&&(!Array.isArray(v)||v.length>
 const asText=v=>Array.isArray(v)?v.map(asText).join(' | '):typeof v==='object'&&v!==null?Object.entries(v).map(([k,x])=>`${k}: ${asText(x)}`).join(' / '):String(v??'');
 function normalAirport(data,key){
  const d={...data,icao:key};
+ const identity=data?.airport_identity||{};
+ const urls=[...(Array.isArray(data?.sources)?data.sources:[]),identity.source_url,...(Array.isArray(data?.fbos)?data.fbos.map(x=>x.source):[])].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
+ const exact=String(data?.icao||'').toUpperCase()===key;
+ const claim=String(identity.status||'').toUpperCase();
+ d.identity_status=exact&&claim==='VERIFIED'&&urls.length?'VERIFIED':claim==='INVALID'?'INVALID':'RESEARCH_REQUIRED';
+ d.identity_evidence=urls;d.identity_reason=String(identity.reason||'');
+
  for(const field of ['field_summary','field_elevation','runways','frequencies','coordinates','limitations','customs','handling'])if(hasValue(d[field])&&field!=='frequencies')d[field]=asText(d[field]);
  if(!Array.isArray(d.frequencies))d.frequencies=hasValue(d.frequencies)?[asText(d.frequencies)]:[];
- const providers=[...(Array.isArray(d.fbos)?d.fbos:[]),...(Array.isArray(d.handlers)?d.handlers:[]),...(Array.isArray(d.fuel_suppliers)?d.fuel_suppliers:[])];
+ const providers=d.identity_status==='VERIFIED'?[...(Array.isArray(d.fbos)?d.fbos:[]),...(Array.isArray(d.handlers)?d.handlers:[]),...(Array.isArray(d.fuel_suppliers)?d.fuel_suppliers:[])]:[];
  const seen=new Set();d.fbos=providers.filter(v=>v&&typeof v==='object'&&v.name).map(v=>({...v,services:asText(v.services||''),contact:asText(v.contact||v.phone||''),fuels:Array.isArray(v.fuels)?v.fuels:[]})).filter(v=>{const x=v.name.toLowerCase();if(seen.has(x))return false;seen.add(x);return true});
  d.sources=Array.isArray(d.sources)?d.sources:[];d.research_status=d.research_status||'AI WEB RESEARCH COMPLETED — REVIEW SOURCES';
  return d;
@@ -28,6 +35,7 @@ export function mergeResearch(mission,data,section,key){
   mission.airport_briefings ||= [];let b=mission.airport_briefings.find(x=>String(x.icao).toUpperCase()===key);
   if(!b){b={icao:key};mission.airport_briefings.push(b)}
   const d=normalAirport(data||{},key);
+  if(d.identity_status!=='VERIFIED')b.fbos=[];
   for(const [k,v] of Object.entries(d))if(k!=='icao'&&hasValue(v))b[k]=v;
  }else if(section==='leg'){
   const leg=(mission.legs||[]).find(x=>Number(x.seq)===Number(key));if(!leg)return mission;

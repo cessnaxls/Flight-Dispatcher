@@ -1,0 +1,6 @@
+PATCH 43 — ChatGPT airport verification and PDF release gating
+1. Real-airport ICAO confirmation is now an explicit requirement of every airport AI research prompt.
+2. Exact ICAO mismatch, absent source link, or unverifiable airport cannot clear the dispatch PDF gate.
+3. Dispatch shows each airport's identity research status and marks unreleased itineraries.
+4. AI-backed briefings no longer get overwritten by lower-priority airport reference enrichment.
+5. Preserves the mission generation code.
