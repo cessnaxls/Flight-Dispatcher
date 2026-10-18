@@ -1,1 +1,9 @@
-{"name":"AeroMission Ops — AI Operations Control","short_name":"AeroMission","start_url":"/","display":"standalone","background_color":"#0a1725","theme_color":"#0a1725","icons":[]}
+{
+  "name": "AeroMission Ops",
+  "short_name": "AeroMission",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e8eef5",
+  "theme_color": "#176db2",
+  "icons": []
+}

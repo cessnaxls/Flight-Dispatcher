@@ -1,0 +1,6 @@
+AeroMission Ops iPad HOTFIX 1
+
+Fix:
+- Express 5 no longer accepts app.get("*", ...) as a wildcard route.
+- Replaced the SPA fallback with app.use(...), which does not invoke path-to-regexp on "*".
+- No dependency changes required.

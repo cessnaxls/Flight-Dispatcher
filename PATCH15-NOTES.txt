@@ -1,0 +1,8 @@
+AeroMission Ops PATCH 15
+
+- Mission Builder is cleared on every fresh app/page load.
+- Job Board and Mission generation use the fast AI path without built-in web_search, eliminating the repeated 50-second web-search abort seen in PATCH 14 logs.
+- Primary generation timeout is 32 seconds for these fast requests; JSON repair remains 8 seconds and validation correction 12 seconds.
+- Job Board -> Mission Builder still populates the builder during the active session.
+- Debug log records PATCH 15 engine mode and timing.
+- Weather/FBO/fuel text is no longer falsely labeled live/current/published when no live source was actually fetched.

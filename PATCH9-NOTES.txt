@@ -1,0 +1,5 @@
+AeroMission Ops PATCH 9
+
+- Toast/debug notifications now remain visible for at least 5 seconds (5.5s).
+- Generation failure progress panels now remain visible for 5.5 seconds instead of disappearing after 1.8 seconds.
+- Success progress behavior is unchanged.

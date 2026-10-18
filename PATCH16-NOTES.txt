@@ -1,0 +1,11 @@
+AeroMission Ops PATCH 16
+
+- Mission Builder starts blank on every fresh page/app load (retained and verified from PATCH 15).
+- Job Board and Mission generation now force the low-latency GPT-6 Luna path regardless of a heavier model selected for other app features.
+- Interactive generation uses low reasoning effort.
+- Non-web generation now requests JSON object output directly on the primary call, eliminating the fragile prose-to-JSON extraction path for normal Job Board/Mission requests.
+- Primary interactive timeout raised from 32s to 50s so the app no longer aborts requests that were still successfully generating at 32s.
+- Repair/correction calls are capped at 7s, keeping the complete failure path under about one minute.
+- Job Board output budget reduced to 6,500 tokens; Mission budget remains larger at 11,000 tokens.
+- Removed stale prompt instructions telling the no-web fast path to perform web research.
+- Debug START records both requested model and actual generation model.
