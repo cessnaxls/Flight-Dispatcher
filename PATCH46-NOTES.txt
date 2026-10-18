@@ -1,1 +1,1 @@
-PATCH 46: mission progress remains active through airport, provider, leg, reference and weather research; 100% only after all steps succeed and airport verification passes. Failed or unverified steps show INCOMPLETE instead of completed. Existing generation and research endpoints unchanged.
+PATCH 46: mission progress stays below 100 percent while ChatGPT research jobs run; completion requires a briefing audit; incomplete research is reported, never called complete. Redesigned PDF header, section bars, grids, cover and footer. Existing mission generator unchanged.
