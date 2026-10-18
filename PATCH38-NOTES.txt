@@ -1,8 +1,0 @@
-PATCH 38 — Airport briefing package and enrichment recovery
-- Includes a separate airport briefing PDF page for every mission departure, destination, and alternate.
-- Shows known airport metadata, current leg METARs, verified ground support/fuel grades, pricing and sources.
-- Explicitly identifies missing/unverified information instead of inventing field elevation, runway or fuel data.
-- Preserves earlier populated airport briefing fields if subsequent research returns blanks.
-- Adds RETRY WEATHER / GROUND SUPPORT button in Dispatch without regenerating mission.
-- Mission concept, aircraft resolution, expansion, and saving pipeline remain unchanged.
-KNOWN LIMITATION: This patch does not restore approved aircraft-specific fuel/performance/W&B figures. The existing mission schema does not provide the AFM/operator performance data required for defensible calculations. Blank figures remain unverified rather than being fabricated. FBO enrichment remains subject to public search availability.
